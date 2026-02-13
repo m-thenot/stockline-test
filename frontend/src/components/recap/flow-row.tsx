@@ -30,12 +30,14 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const mutateRef = useRef(updateFlow.mutate);
+  // eslint-disable-next-line react-hooks/refs
   mutateRef.current = updateFlow.mutate;
 
   const debouncedUpdate = (data: Record<string, unknown>) => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
+
     debounceRef.current = setTimeout(() => {
       mutateRef.current({ id: flow.id, data });
     }, 500);

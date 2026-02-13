@@ -11,9 +11,7 @@ from ..schemas import FlowCreate, FlowResponse, FlowUpdate
 router = APIRouter()
 
 
-@router.post(
-    "/pre-orders/{pre_order_id}/flows", response_model=FlowResponse
-)
+@router.post("/pre-orders/{pre_order_id}/flows", response_model=FlowResponse)
 async def create_flow(
     pre_order_id: uuid.UUID, body: FlowCreate, db: AsyncSession = Depends(get_db)
 ):
@@ -35,9 +33,7 @@ async def create_flow(
 
 
 @router.put("/flows/{id}", response_model=FlowResponse)
-async def update_flow(
-    id: uuid.UUID, body: FlowUpdate, db: AsyncSession = Depends(get_db)
-):
+async def update_flow(id: uuid.UUID, body: FlowUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PreOrderFlow).where(PreOrderFlow.id == id))
     flow = result.scalar_one_or_none()
     if flow is None:

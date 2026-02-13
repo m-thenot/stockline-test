@@ -1,0 +1,28 @@
+repos:
+  # ---- Backend (Python) ----
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/.*\.py$
+      - id: ruff-format
+        files: ^backend/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: bash -lc 'cd backend && uv run mypy app'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: frontend-lint-staged
+        name: lint-staged (frontend)
+        entry: bash -lc 'cd frontend && pnpm lint-staged'
+        language: system
+        pass_filenames: false
+        files: ^frontend/

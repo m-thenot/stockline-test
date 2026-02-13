@@ -63,16 +63,44 @@ async def seed_database(session: AsyncSession) -> None:
 
     # ── Products ─────────────────────────────────────────────────────
     products = [
-        Product(id=PRODUCT_SALMON, name="Atlantic Salmon", short_name="Salmon", sku="SAL001", code="PSAL"),
-        Product(id=PRODUCT_SEA_BASS, name="Wild Sea Bass", short_name="Sea Bass", sku="BAS001", code="PBAS"),
-        Product(id=PRODUCT_SEA_BREAM, name="Royal Sea Bream", short_name="Bream", sku="BRE001", code="PBRE"),
+        Product(
+            id=PRODUCT_SALMON,
+            name="Atlantic Salmon",
+            short_name="Salmon",
+            sku="SAL001",
+            code="PSAL",
+        ),
+        Product(
+            id=PRODUCT_SEA_BASS,
+            name="Wild Sea Bass",
+            short_name="Sea Bass",
+            sku="BAS001",
+            code="PBAS",
+        ),
+        Product(
+            id=PRODUCT_SEA_BREAM,
+            name="Royal Sea Bream",
+            short_name="Bream",
+            sku="BRE001",
+            code="PBRE",
+        ),
         Product(id=PRODUCT_TUNA, name="Bluefin Tuna", short_name="Tuna", sku="TUN001", code="PTUN"),
         Product(id=PRODUCT_COD, name="Atlantic Cod", short_name="Cod", sku="COD001", code="PCOD"),
-        Product(id=PRODUCT_SHRIMP, name="Pink Shrimp", short_name="Shrimp", sku="SHR001", code="PSHR"),
-        Product(id=PRODUCT_OYSTERS, name="Special Oysters", short_name="Oysters", sku="OYS001", code="POYS"),
+        Product(
+            id=PRODUCT_SHRIMP, name="Pink Shrimp", short_name="Shrimp", sku="SHR001", code="PSHR"
+        ),
+        Product(
+            id=PRODUCT_OYSTERS,
+            name="Special Oysters",
+            short_name="Oysters",
+            sku="OYS001",
+            code="POYS",
+        ),
         Product(id=PRODUCT_SOLE, name="Dover Sole", short_name="Sole", sku="SOL001", code="PSOL"),
         Product(id=PRODUCT_TURBOT, name="Turbot", short_name="Turbot", sku="TUR001", code="PTUR"),
-        Product(id=PRODUCT_LOBSTER, name="Blue Lobster", short_name="Lobster", sku="LOB001", code="PLOB"),
+        Product(
+            id=PRODUCT_LOBSTER, name="Blue Lobster", short_name="Lobster", sku="LOB001", code="PLOB"
+        ),
     ]
     session.add_all(products)
 

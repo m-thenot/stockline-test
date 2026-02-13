@@ -14,9 +14,7 @@ router = APIRouter(prefix="/pre-orders")
 @router.get("/recap/{date}", response_model=list[RecapPartnerGroup])
 async def get_recap(date: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(PreOrder)
-        .where(PreOrder.delivery_date == date)
-        .order_by(PreOrder.created_at)
+        select(PreOrder).where(PreOrder.delivery_date == date).order_by(PreOrder.created_at)
     )
     pre_orders = result.scalars().all()
 
@@ -26,7 +24,7 @@ async def get_recap(date: str, db: AsyncSession = Depends(get_db)):
         pid = str(po.partner_id)
         if pid not in groups:
             groups[pid] = RecapPartnerGroup(partner=po.partner, pre_orders=[])
-        groups[pid].pre_orders.append(po)
+        groups[pid].pre_orders.append(PreOrderResponse.model_validate(po))
 
     return list(groups.values())
 
@@ -50,9 +48,7 @@ async def create_pre_order(body: PreOrderCreate, db: AsyncSession = Depends(get_
 
 
 @router.put("/{id}", response_model=PreOrderResponse)
-async def update_pre_order(
-    id: uuid.UUID, body: PreOrderUpdate, db: AsyncSession = Depends(get_db)
-):
+async def update_pre_order(id: uuid.UUID, body: PreOrderUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PreOrder).where(PreOrder.id == id))
     pre_order = result.scalar_one_or_none()
     if pre_order is None:
