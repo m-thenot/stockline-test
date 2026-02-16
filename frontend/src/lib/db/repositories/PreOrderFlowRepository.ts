@@ -8,7 +8,7 @@ import type { SyncDB } from "../index";
  */
 export class PreOrderFlowRepository extends Repository<PreOrderFlow> {
   constructor(db: SyncDB) {
-    super(db, "pre_order_flows", "flow");
+    super(db, "pre_order_flows", "pre_order_flow");
   }
 
   /**

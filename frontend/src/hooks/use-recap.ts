@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { preOrderRepository } from "@/lib/db/repositories";
 
 export function useRecap(date: string) {
   const queryClient = useQueryClient();
@@ -14,23 +15,41 @@ export function useRecap(date: string) {
   };
 
   const createPreOrder = useMutation({
-    mutationFn: (data: {
+    mutationFn: async (data: {
       partner_id: string;
       delivery_date: string;
       status?: number;
       comment?: string;
-    }) => api.createPreOrder(data),
+    }) => {
+      const order = await preOrderRepository.create({
+        partner_id: data.partner_id,
+        delivery_date: data.delivery_date,
+        status: data.status ?? 0,
+        comment: data.comment,
+      });
+      return order;
+    },
     onSuccess: invalidateRecap,
   });
 
   const updatePreOrder = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      api.updatePreOrder(id, data),
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Record<string, unknown>;
+    }) => {
+      const order = await preOrderRepository.update(id, data);
+      return order;
+    },
     onSuccess: invalidateRecap,
   });
 
   const deletePreOrder = useMutation({
-    mutationFn: (id: string) => api.deletePreOrder(id),
+    mutationFn: async (id: string) => {
+      await preOrderRepository.delete(id);
+    },
     onSuccess: invalidateRecap,
   });
 
