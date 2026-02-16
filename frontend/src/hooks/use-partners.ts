@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { db } from "@/lib/db";
 
 export function usePartners() {
   return useQuery({
     queryKey: ["partners"],
-    queryFn: api.getPartners,
-    staleTime: 5 * 60 * 1000,
+    queryFn: () => db.partners.toArray(),
+    staleTime: Infinity,
   });
 }

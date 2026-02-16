@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { db } from "@/lib/db";
 
 export function useUnits() {
   return useQuery({
     queryKey: ["units"],
-    queryFn: api.getUnits,
-    staleTime: 5 * 60 * 1000,
+    queryFn: () => db.units.toArray(),
+    staleTime: Infinity,
   });
 }
