@@ -28,6 +28,10 @@ export class SyncManager {
   private pushIntervalId: number | null = null;
   private isPushing = false;
 
+  // Subscribe/notify for useSyncExternalStore
+  private listeners = new Set<() => void>();
+  private _snapshot: SyncStatus = this.buildSnapshot();
+
   /**
    * Private constructor for singleton pattern
    */
@@ -39,6 +43,9 @@ export class SyncManager {
 
     // Setup connection listeners
     this.setupConnectionListeners();
+
+    // Rebuild snapshot after connection detection
+    this._snapshot = this.buildSnapshot();
   }
 
   /**
@@ -93,7 +100,24 @@ export class SyncManager {
    */
   public destroy(): void {
     this.stop();
+    this.listeners.clear();
     SyncManager.instance = null;
+  }
+
+  /**
+   * Subscribe to state changes (contract for useSyncExternalStore)
+   * @returns unsubscribe function
+   */
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * Get memoized snapshot (stable reference for useSyncExternalStore)
+   */
+  public getSnapshot(): SyncStatus {
+    return this._snapshot;
   }
 
   /**
@@ -127,8 +151,9 @@ export class SyncManager {
       // Update pending count
       await this.updatePendingCount();
 
-      // Update state to idle
+      // Update state to idle (also triggers notify via updateState)
       this.updateState("idle");
+      this.notify();
 
       // Log result
       logger.info(
@@ -155,13 +180,7 @@ export class SyncManager {
    * Get current sync status
    */
   public getStatus(): SyncStatus {
-    return {
-      state: this.state,
-      connection: this.connection,
-      lastPushTime: this.lastPushTime,
-      lastError: this.lastError,
-      pendingOperations: this.pendingOperations,
-    };
+    return this._snapshot;
   }
 
   /**
@@ -172,21 +191,44 @@ export class SyncManager {
   }
 
   /**
-   * Update sync state
+   * Update sync state and notify subscribers
    */
   private updateState(newState: SyncState): void {
     if (this.state !== newState) {
       this.state = newState;
+      this.notify();
     }
   }
 
   /**
-   * Update connection state
+   * Update connection state and notify subscribers
    */
   private updateConnection(newConnection: ConnectionState): void {
     if (this.connection !== newConnection) {
       this.connection = newConnection;
+      this.notify();
     }
+  }
+
+  /**
+   * Build a new snapshot object from current state
+   */
+  private buildSnapshot(): SyncStatus {
+    return {
+      state: this.state,
+      connection: this.connection,
+      lastPushTime: this.lastPushTime,
+      lastError: this.lastError,
+      pendingOperations: this.pendingOperations,
+    };
+  }
+
+  /**
+   * Rebuild snapshot and notify all subscribers (triggers React re-renders)
+   */
+  private notify(): void {
+    this._snapshot = this.buildSnapshot();
+    this.listeners.forEach((listener) => listener());
   }
 
   /**

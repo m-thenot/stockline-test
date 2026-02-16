@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Package, Users, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { useSyncStatus } from "@/hooks/use-sync-status";
 
 const navItems = [
   { href: "/products", label: "Products", icon: Package },
@@ -14,11 +15,30 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { connection } = useSyncStatus();
+
+  const connectionLabel =
+    connection === "online"
+      ? "Online"
+      : connection === "offline"
+        ? "Offline"
+        : "Unknown";
 
   return (
     <aside className="flex h-screen w-[240px] flex-col border-r bg-background">
-      <div className="flex h-14 items-center px-6">
-        <h1 className="text-lg font-bold tracking-tight">Stockline</h1>
+      <div className="flex h-14 items-center justify-between px-6">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold tracking-tight">Stockline</h1>
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              connection === "online" && "bg-emerald-500",
+              connection === "offline" && "bg-red-500",
+              connection === "unknown" && "bg-gray-400",
+            )}
+            title={connectionLabel}
+          />
+        </div>
       </div>
       <Separator />
       <nav className="flex flex-1 flex-col gap-1 p-4">
