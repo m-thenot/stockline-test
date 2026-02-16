@@ -71,6 +71,36 @@ class RecapPartnerGroup(BaseModel):
     pre_orders: list[PreOrderResponse]
 
 
+# --- Snapshot schemas (flat, no nested relationships) ---
+
+
+class PreOrderSnapshotResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    partner_id: uuid.UUID
+    status: int
+    order_date: str | None
+    delivery_date: str
+    comment: str | None
+    created_at: datetime | None
+    updated_at: datetime | None
+
+
+class FlowSnapshotResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    pre_order_id: uuid.UUID
+    product_id: uuid.UUID
+    quantity: float
+    price: float
+    unit_id: uuid.UUID
+    comment: str | None
+    created_at: datetime | None
+    updated_at: datetime | None
+
+
 # --- Create / Update schemas ---
 
 

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { SyncDB } from "@/lib/db";
 import { logger } from "@/lib/utils/logger";
 import { PushService } from "./PushService";
+import { PullService } from "./PullService";
 import type {
   SyncConfig,
   SyncStatus,
@@ -13,6 +14,7 @@ export class SyncManager {
   private static instance: SyncManager | null = null;
 
   private pushService: PushService;
+  private pullService: PullService;
 
   private state: SyncState = "idle";
   private connection: ConnectionState = "unknown";
@@ -30,13 +32,21 @@ export class SyncManager {
 
   // Subscribe/notify for useSyncExternalStore
   private listeners = new Set<() => void>();
-  private _snapshot: SyncStatus = this.buildSnapshot();
+  private _snapshot: SyncStatus = {
+    state: "idle",
+    connection: "unknown",
+    lastPushTime: null,
+    lastError: null,
+    pendingOperations: 0,
+    pullSyncing: false,
+  };
 
   /**
    * Private constructor for singleton pattern
    */
   private constructor(database: SyncDB) {
     this.pushService = new PushService(database);
+    this.pullService = new PullService(database);
 
     // Initialize connection state
     this.connection = this.detectConnection();
@@ -67,6 +77,10 @@ export class SyncManager {
       logger.warn("SyncManager already started");
       return;
     }
+
+    this.pullService.start().catch((error) => {
+      logger.error("Initial pull sync failed:", error);
+    });
 
     // Initial push
     this.push().catch((error) => {
@@ -214,12 +228,15 @@ export class SyncManager {
    * Build a new snapshot object from current state
    */
   private buildSnapshot(): SyncStatus {
+    const pullStatus = this.pullService.getStatus();
+
     return {
       state: this.state,
       connection: this.connection,
       lastPushTime: this.lastPushTime,
       lastError: this.lastError,
       pendingOperations: this.pendingOperations,
+      pullSyncing: pullStatus.syncing,
     };
   }
 

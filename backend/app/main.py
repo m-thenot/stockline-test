@@ -29,13 +29,14 @@ app.add_middleware(
 )
 
 # Include routers
-from .routes import flows, partners, pre_orders, products, units  # noqa: E402
+from .routes import flows, partners, pre_orders, products, sync, units  # noqa: E402
 
 app.include_router(products.router, tags=["Products"])
 app.include_router(partners.router, tags=["Partners"])
 app.include_router(units.router, tags=["Units"])
 app.include_router(pre_orders.router, tags=["Pre-Orders"])
 app.include_router(flows.router, tags=["Flows"])
+app.include_router(sync.router, tags=["Sync"])
 
 
 @app.get("/health")

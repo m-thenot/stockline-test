@@ -4,6 +4,9 @@ import type {
   PreOrderFlow,
   Metadata,
   OutboxOperation,
+  Partner,
+  Product,
+  Unit,
 } from "./models";
 
 export class SyncDB extends Dexie {
@@ -11,15 +14,21 @@ export class SyncDB extends Dexie {
   pre_orders!: EntityTable<PreOrder, "id">;
   pre_order_flows!: EntityTable<PreOrderFlow, "id">;
   outbox!: EntityTable<OutboxOperation, "id">;
+  partners!: EntityTable<Partner, "id">;
+  products!: EntityTable<Product, "id">;
+  units!: EntityTable<Unit, "id">;
 
   constructor() {
     super("SyncDB");
 
     this.version(1).stores({
-      metadata: "key", // PK: key
-      pre_orders: "id, created_at", // PK: id, Index: created_at
-      pre_order_flows: "id, pre_order_id", // PK: id, Index: pre_order_id
-      outbox: "id, sequence_number, status", // PK: id, Indexes: sequence_number, status
+      metadata: "key",
+      pre_orders: "id, partner_id, delivery_date, created_at",
+      pre_order_flows: "id, pre_order_id, product_id",
+      outbox: "id, sequence_number, status",
+      partners: "id, name",
+      products: "id, name",
+      units: "id, name",
     });
 
     // Auto-initialize metadata on first launch

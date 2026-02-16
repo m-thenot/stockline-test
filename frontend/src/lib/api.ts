@@ -6,6 +6,21 @@ import type {
   PreOrderFlow,
   RecapGroup,
 } from "./types";
+import type {
+  Partner as DbPartner,
+  Product as DbProduct,
+  Unit as DbUnit,
+  PreOrder as DbPreOrder,
+  PreOrderFlow as DbPreOrderFlow,
+} from "./db/models";
+
+export interface SnapshotData {
+  partners: DbPartner[];
+  products: DbProduct[];
+  units: DbUnit[];
+  pre_orders: Omit<DbPreOrder, "version">[];
+  flows: Omit<DbPreOrderFlow, "version">[];
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -55,4 +70,5 @@ export const api = {
     }),
   deleteFlow: (id: string) =>
     request<{ ok: boolean }>(`/flows/${id}`, { method: "DELETE" }),
+  getSnapshot: () => request<SnapshotData>("/sync/snapshot"),
 };

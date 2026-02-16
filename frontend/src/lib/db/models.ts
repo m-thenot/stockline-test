@@ -9,11 +9,11 @@ export interface PreOrder {
   id: string; // UUIDv7
   partner_id: string;
   status: number; // 0=pending, 1=confirmed
-  order_date?: string;
-  comment?: string;
+  order_date: string | null;
+  comment: string | null;
   delivery_date: string;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   version: number;
 }
 
@@ -28,9 +28,9 @@ export interface PreOrderFlow {
   unit_id: string;
   quantity: number;
   price: number;
-  comment?: string;
-  created_at: string;
-  updated_at: string;
+  comment: string | null;
+  created_at: string | null;
+  updated_at: string | null;
   version: number;
 }
 
@@ -57,4 +57,34 @@ export interface OutboxOperation {
   status: OperationStatus;
   retry_count: number;
   sequence_number: number;
+}
+
+/**
+ * Partner (Reference Data)
+ */
+export interface Partner {
+  id: string;
+  name: string;
+  code: string | null;
+  type: number; // 1=client, 2=supplier
+}
+
+/**
+ * Product (Reference Data)
+ */
+export interface Product {
+  id: string;
+  name: string;
+  short_name: string | null;
+  sku: string | null;
+  code: string | null;
+}
+
+/**
+ * Unit (Reference Data)
+ */
+export interface Unit {
+  id: string;
+  name: string;
+  abbreviation: string;
 }
