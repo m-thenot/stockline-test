@@ -28,18 +28,35 @@ export class PushService {
 
     result.processedCount = operations.length;
 
-    // Map outbox entries to the push request format
-    const pushOperations = operations.map(this.toPushOperation);
+    // Coalesce redundant operations before pushing
+    const { toSend, toRemoveIds } = this.coalesceOperations(operations);
 
-    // Mark all as syncing in batch
-    const ids = operations.map((op) => op.id);
+    // Mark coalesced-away operations as synced immediately
+    if (toRemoveIds.length > 0) {
+      await this.db.markOperationsSynced(toRemoveIds);
+      logger.info(
+        `Coalesced ${toRemoveIds.length} redundant operations (${operations.length} → ${toSend.length})`,
+      );
+    }
+
+    // All operations cancelled out (e.g. CREATE + DELETE)
+    if (toSend.length === 0) {
+      result.successCount = operations.length;
+      return result;
+    }
+
+    // Map outbox entries to the push request format
+    const pushOperations = toSend.map(this.toPushOperation);
+
+    // Mark remaining as syncing in batch
+    const ids = toSend.map((op) => op.id);
     await this.db.markOperationsSyncing(ids);
 
     try {
       const response = await api.syncPush({ operations: pushOperations });
 
       // Build a lookup from operation_id -> outbox operation for entity updates
-      const outboxById = new Map(operations.map((op) => [op.id, op]));
+      const outboxById = new Map(toSend.map((op) => [op.id, op]));
 
       let maxSyncId = 0;
 
@@ -104,11 +121,11 @@ export class PushService {
         });
       }
     } catch (error) {
-      // Network or unexpected error — mark all back to failed
-      for (const op of operations) {
+      // Network or unexpected error — mark remaining ops back to failed
+      for (const op of toSend) {
         await this.db.markOperationFailed(op.id);
       }
-      result.failedCount = operations.length;
+      result.failedCount = toSend.length;
       result.successCount = 0;
       result.errors.push({
         operationId: "batch",
@@ -118,6 +135,118 @@ export class PushService {
     }
 
     return result;
+  }
+
+  /**
+   * Coalesce redundant operations targeting the same entity before pushing.
+   *
+   * Rules (applied per entity_type + entity_id group, ordered by sequence_number):
+   *  - CREATE + UPDATE(s)       → single CREATE with merged data
+   *  - CREATE + ... + DELETE    → all operations cancel out (nothing to send)
+   *  - Multiple UPDATEs         → single UPDATE with merged data, first expected_version
+   */
+  private coalesceOperations(operations: OutboxOperation[]): {
+    toSend: OutboxOperation[];
+    toRemoveIds: string[];
+  } {
+    // Group operations by (entity_type, entity_id), preserving sequence order
+    const groups = new Map<string, OutboxOperation[]>();
+    for (const op of operations) {
+      const key = `${op.entity_type}:${op.entity_id}`;
+      const group = groups.get(key);
+      if (group) {
+        group.push(op);
+      } else {
+        groups.set(key, [op]);
+      }
+    }
+
+    const toSend: OutboxOperation[] = [];
+    const toRemoveIds: string[] = [];
+
+    for (const group of groups.values()) {
+      if (group.length === 1) {
+        // Single operation — pass through unchanged
+        toSend.push(group[0]);
+        continue;
+      }
+
+      const first = group[0];
+      const last = group[group.length - 1];
+
+      if (
+        first.operation_type === "CREATE" &&
+        last.operation_type === "DELETE"
+      ) {
+        // CREATE + ... + DELETE → everything cancels out
+        for (const op of group) {
+          toRemoveIds.push(op.id);
+        }
+        continue;
+      }
+
+      if (first.operation_type === "CREATE") {
+        // CREATE + UPDATE(s) → merge updates into the CREATE
+        let mergedData = { ...(first.data as Record<string, unknown>) };
+
+        for (let i = 1; i < group.length; i++) {
+          const updateData = { ...(group[i].data as Record<string, unknown>) };
+          // Strip the version from UPDATE data — CREATE already carries the right version
+          delete updateData.version;
+          mergedData = { ...mergedData, ...updateData };
+          toRemoveIds.push(group[i].id);
+        }
+
+        toSend.push({
+          ...first,
+          data: mergedData,
+          timestamp: last.timestamp,
+        });
+        continue;
+      }
+
+      // Multiple UPDATEs
+      // Find consecutive UPDATEs from the start
+      const updates: OutboxOperation[] = [];
+      let rest: OutboxOperation[] = [];
+      for (let i = 0; i < group.length; i++) {
+        if (group[i].operation_type === "UPDATE") {
+          updates.push(group[i]);
+        } else {
+          rest = group.slice(i);
+          break;
+        }
+      }
+
+      if (updates.length > 1) {
+        // Merge all UPDATEs into the first one
+        const firstUpdate = updates[0];
+        let mergedData = { ...(firstUpdate.data as Record<string, unknown>) };
+
+        for (let i = 1; i < updates.length; i++) {
+          const laterData = { ...(updates[i].data as Record<string, unknown>) };
+          // Strip version from later UPDATEs — keep the first UPDATE's expected_version
+          delete laterData.version;
+          mergedData = { ...mergedData, ...laterData };
+          toRemoveIds.push(updates[i].id);
+        }
+
+        toSend.push({
+          ...firstUpdate,
+          data: mergedData,
+          timestamp: updates[updates.length - 1].timestamp,
+        });
+      } else if (updates.length === 1) {
+        toSend.push(updates[0]);
+      }
+
+      // Pass through any trailing non-UPDATE operations (e.g. a final DELETE)
+      for (const op of rest) {
+        toSend.push(op);
+      }
+    }
+
+    return { toSend, toRemoveIds };
   }
 
   /**
