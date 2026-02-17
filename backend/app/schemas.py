@@ -194,3 +194,24 @@ class PushOperationResult(BaseModel):
 
 class PushResponse(BaseModel):
     results: list[PushOperationResult]
+
+
+# --- Sync Pull schemas ---
+
+
+class PullOperationResponse(BaseModel):
+    """A single operation from the operation_log."""
+
+    sync_id: int
+    entity_type: str
+    entity_id: uuid.UUID
+    operation_type: str
+    data: dict
+    timestamp: datetime
+
+
+class PullResponse(BaseModel):
+    """Response from GET /sync/pull."""
+
+    operations: list[PullOperationResponse]
+    has_more: bool

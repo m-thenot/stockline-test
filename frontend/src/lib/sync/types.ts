@@ -60,3 +60,28 @@ export interface PushOperationResult {
 export interface PushResponseBody {
   results: PushOperationResult[];
 }
+
+// --- SSE types ---
+
+export interface SSEEvent {
+  event: string;
+  entity_type: string;
+  entity_id: string;
+  sync_id: number;
+}
+
+// --- Sync Pull types ---
+
+export interface PullOperation {
+  sync_id: number;
+  entity_type: string;
+  entity_id: string;
+  operation_type: "CREATE" | "UPDATE" | "DELETE";
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface PullResponse {
+  operations: PullOperation[];
+  has_more: boolean;
+}

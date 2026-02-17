@@ -12,6 +12,7 @@ from ..schemas import (
     PushResultStatus,
 )
 from .conflict_resolver import ConflictResolver
+from .event_broadcaster import SSEEvent, broadcaster
 from .pre_order_sync_service import PreOrderSyncService
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,16 @@ class SyncPushService:
 
                 if result.status == PushResultStatus.SUCCESS:
                     await savepoint.commit()
+                    # Broadcast SSE event after successful commit
+                    if result.sync_id is not None:
+                        await broadcaster.broadcast(
+                            SSEEvent(
+                                event="entity_changed",
+                                entity_type=op.entity_type,
+                                entity_id=str(op.entity_id),
+                                sync_id=result.sync_id,
+                            )
+                        )
                 else:
                     await savepoint.rollback()
 

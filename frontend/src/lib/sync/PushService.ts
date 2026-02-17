@@ -58,8 +58,6 @@ export class PushService {
       // Build a lookup from operation_id -> outbox operation for entity updates
       const outboxById = new Map(toSend.map((op) => [op.id, op]));
 
-      let maxSyncId = 0;
-
       for (const opResult of response.results) {
         const outboxOp = outboxById.get(opResult.operation_id);
 
@@ -75,11 +73,6 @@ export class PushService {
               outboxOp.entity_id,
               opResult.new_version,
             );
-          }
-
-          // Track highest sync_id
-          if (opResult.sync_id != null && opResult.sync_id > maxSyncId) {
-            maxSyncId = opResult.sync_id;
           }
 
           // Log conflict details for observability
@@ -105,18 +98,10 @@ export class PushService {
         }
       }
 
-      // Advance the sync cursor
-      if (maxSyncId > 0) {
-        const currentSyncId = await this.db.getLastSyncId();
-        if (maxSyncId > currentSyncId) {
-          await this.db.setLastSyncId(maxSyncId);
-        }
-      }
-
-      // Update last sync timestamp
+      // Update last push timestamp
       if (result.successCount > 0) {
         await this.db.metadata.put({
-          key: "last_sync_timestamp",
+          key: "last_push_timestamp",
           value: new Date().toISOString(),
         });
       }

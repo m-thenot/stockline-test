@@ -13,7 +13,11 @@ import type {
   PreOrder as DbPreOrder,
   PreOrderFlow as DbPreOrderFlow,
 } from "./db/models";
-import type { PushRequestBody, PushResponseBody } from "./sync/types";
+import type {
+  PullResponse,
+  PushRequestBody,
+  PushResponseBody,
+} from "./sync/types";
 
 export interface SnapshotData {
   partners: DbPartner[];
@@ -23,7 +27,8 @@ export interface SnapshotData {
   flows: Omit<DbPreOrderFlow, "version">[];
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -77,4 +82,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  pullOperations: (sinceSyncId: number, limit?: number) =>
+    request<PullResponse>(
+      `/sync/pull?since_sync_id=${sinceSyncId}&limit=${limit ?? 100}`,
+    ),
 };
