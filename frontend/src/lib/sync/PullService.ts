@@ -4,6 +4,7 @@ import { api, type SnapshotData } from "@/lib/api";
 import { logger } from "@/lib/utils/logger";
 import type { PreOrder, PreOrderFlow } from "@/lib/db/models";
 import type { PullOperation } from "./types";
+import { queryInvalidator } from "./QueryInvalidator";
 
 export class PullService {
   private isSyncing = false;
@@ -66,6 +67,8 @@ export class PullService {
         value: Date.now(),
       });
 
+      queryInvalidator.invalidateAll();
+
       logger.info("Initial snapshot sync completed");
     } catch (error) {
       logger.error("Failed to sync initial snapshot:", error);
@@ -90,6 +93,9 @@ export class PullService {
     const pendingOps = await this.db.getPendingOperations();
     const pendingByEntity = this.groupPendingOpsByEntity(pendingOps);
 
+    // Track modified preOrderIds for query invalidation
+    const affectedPreOrderIds = new Set<string>();
+
     try {
       let sinceSyncId = await this.db.getLastSyncId();
       let hasMore = true;
@@ -106,6 +112,16 @@ export class PullService {
         for (const op of response.operations) {
           const entityKey = `${op.entity_type}:${op.entity_id}`;
           const localOps = pendingByEntity.get(entityKey) || [];
+
+          // Track affected preOrderIds (for flows, get pre_order_id from data or DB)
+          if (op.entity_type === "pre_order") {
+            affectedPreOrderIds.add(op.entity_id);
+          } else if (op.entity_type === "pre_order_flow") {
+            const preOrderId =
+              (op.data?.pre_order_id as string | undefined) ??
+              (await this.db.pre_order_flows.get(op.entity_id))?.pre_order_id;
+            if (preOrderId) affectedPreOrderIds.add(preOrderId);
+          }
 
           if (localOps.length > 0) {
             // Potential conflict: there are local operations pending
@@ -125,6 +141,13 @@ export class PullService {
 
         logger.info(
           `Pulled ${response.operations.length} operations (sync_id ${maxSyncId})`,
+        );
+      }
+
+      // Invalidate queries by preOrderIds (no delivery_date lookup)
+      if (affectedPreOrderIds.size > 0) {
+        queryInvalidator.invalidatePreOrdersByIds(
+          Array.from(affectedPreOrderIds),
         );
       }
 
