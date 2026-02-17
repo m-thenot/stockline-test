@@ -3,6 +3,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..repositories.operation_log_repository import OperationLogRepository
+from ..repositories.pre_order_flow_repository import PreOrderFlowRepository
 from ..repositories.pre_order_repository import PreOrderRepository
 from ..schemas import (
     EntityType,
@@ -13,6 +14,7 @@ from ..schemas import (
 )
 from .conflict_resolver import ConflictResolver
 from .event_broadcaster import SSEEvent, broadcaster
+from .pre_order_flow_sync_service import PreOrderFlowSyncService
 from .pre_order_sync_service import PreOrderSyncService
 
 logger = logging.getLogger(__name__)
@@ -23,8 +25,12 @@ class SyncPushService:
         self._session = session
         op_log_repo = OperationLogRepository(session)
         pre_order_repo = PreOrderRepository(session)
+        pre_order_flow_repo = PreOrderFlowRepository(session)
         conflict_resolver = ConflictResolver()
         self._pre_order_sync = PreOrderSyncService(pre_order_repo, op_log_repo, conflict_resolver)
+        self._pre_order_flow_sync = PreOrderFlowSyncService(
+            pre_order_flow_repo, op_log_repo, conflict_resolver
+        )
 
     async def process_operations(
         self,
@@ -71,6 +77,8 @@ class SyncPushService:
     async def _dispatch(self, op: PushOperationRequest) -> PushOperationResult:
         if op.entity_type == EntityType.PRE_ORDER:
             return await self._pre_order_sync.handle(op)
+        if op.entity_type == EntityType.PRE_ORDER_FLOW:
+            return await self._pre_order_flow_sync.handle(op)
 
         return PushOperationResult(
             operation_id=op.id,

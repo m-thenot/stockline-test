@@ -3,7 +3,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
-    Column,
     DateTime,
     Float,
     ForeignKey,
@@ -22,30 +21,30 @@ from .database import Base
 class Product(Base):
     __tablename__ = "products"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(200), nullable=False)
-    short_name = Column(String(50), nullable=True)
-    sku = Column(String(50), nullable=True)
-    code = Column(String(50), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    short_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class Partner(Base):
     __tablename__ = "partners"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(200), nullable=False)
-    code = Column(String(50), nullable=True)
-    type = Column(Integer, nullable=False, default=1)  # 1=client, 2=supplier
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1=client, 2=supplier
 
-    pre_orders = relationship("PreOrder", back_populates="partner", lazy="noload")
+    pre_orders: Mapped[list["PreOrder"]] = relationship(back_populates="partner", lazy="noload")
 
 
 class Unit(Base):
     __tablename__ = "units"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(100), nullable=False)
-    abbreviation = Column(String(10), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    abbreviation: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
 class PreOrder(Base):
@@ -77,25 +76,33 @@ class PreOrder(Base):
 class PreOrderFlow(Base):
     __tablename__ = "pre_order_flows"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pre_order_id = Column(
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pre_order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("pre_orders.id", ondelete="CASCADE"),
         nullable=False,
     )
-    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
-    quantity = Column(Float, nullable=False, default=0)
-    price = Column(Float, nullable=False, default=0)
-    unit_id = Column(UUID(as_uuid=True), ForeignKey("units.id"), nullable=False)
-    comment = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    version = Column(Integer, nullable=False, default=1)
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id"), nullable=False
+    )
+    quantity: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    price: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("units.id"), nullable=False
+    )
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    pre_order = relationship("PreOrder", back_populates="flows", lazy="noload")
-    product = relationship("Product", lazy="selectin")
-    unit = relationship("Unit", lazy="selectin")
+    pre_order: Mapped["PreOrder"] = relationship(back_populates="flows", lazy="noload")
+    product: Mapped["Product"] = relationship(lazy="selectin")
+    unit: Mapped["Unit"] = relationship(lazy="selectin")
 
 
 class OperationLog(Base):
