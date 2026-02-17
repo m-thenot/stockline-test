@@ -14,7 +14,9 @@ router = APIRouter(prefix="/pre-orders")
 @router.get("/recap/{date}", response_model=list[RecapPartnerGroup])
 async def get_recap(date: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(PreOrder).where(PreOrder.delivery_date == date).order_by(PreOrder.created_at)
+        select(PreOrder)
+        .where(PreOrder.delivery_date == date, PreOrder.deleted_at.is_(None))
+        .order_by(PreOrder.created_at)
     )
     pre_orders = result.scalars().all()
 

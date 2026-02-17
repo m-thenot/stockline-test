@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
@@ -134,3 +135,62 @@ class FlowUpdate(BaseModel):
     price: float | None = None
     unit_id: uuid.UUID | None = None
     comment: str | None = None
+
+
+# --- Sync Push schemas ---
+
+
+class EntityType(StrEnum):
+    PRE_ORDER = "pre_order"
+    PRE_ORDER_FLOW = "pre_order_flow"
+
+
+class OperationType(StrEnum):
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+
+
+class PushResultStatus(StrEnum):
+    SUCCESS = "success"
+    CONFLICT = "conflict"
+    ERROR = "error"
+
+
+class PushOperationRequest(BaseModel):
+    id: str
+    entity_type: EntityType
+    entity_id: uuid.UUID
+    operation_type: OperationType
+    data: dict
+    expected_version: int | None = None
+    timestamp: str
+
+
+class PushRequest(BaseModel):
+    operations: list[PushOperationRequest]
+
+
+class ConflictWinner(StrEnum):
+    CLIENT = "client"
+    SERVER = "server"
+
+
+class ResolvedFieldConflict(BaseModel):
+    field: str
+    client_value: str | int | float | bool | None = None
+    server_value: str | int | float | bool | None = None
+    winner: ConflictWinner
+
+
+class PushOperationResult(BaseModel):
+    operation_id: str
+    status: PushResultStatus
+    sync_id: int | None = None
+    new_version: int | None = None
+    message: str | None = None
+    conflicts: list[ResolvedFieldConflict] | None = None
+
+
+class PushResponse(BaseModel):
+    results: list[PushOperationResult]

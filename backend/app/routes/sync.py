@@ -1,17 +1,21 @@
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import AsyncSessionLocal
+from ..database import AsyncSessionLocal, get_db
 from ..models import Partner, PreOrder, PreOrderFlow, Product, Unit
 from ..schemas import (
     FlowSnapshotResponse,
     PartnerResponse,
     PreOrderSnapshotResponse,
     ProductResponse,
+    PushRequest,
+    PushResponse,
     UnitResponse,
 )
+from ..services.sync_push_service import SyncPushService
 
 router = APIRouter(prefix="/sync")
 
@@ -33,7 +37,7 @@ async def get_snapshot():
         _fetch_all(select(Partner)),
         _fetch_all(select(Product)),
         _fetch_all(select(Unit)),
-        _fetch_all(select(PreOrder)),
+        _fetch_all(select(PreOrder).where(PreOrder.deleted_at.is_(None))),
         _fetch_all(select(PreOrderFlow)),
     )
 
@@ -46,3 +50,14 @@ async def get_snapshot():
         ],
         "flows": [FlowSnapshotResponse.model_validate(f).model_dump(mode="json") for f in flows],
     }
+
+
+@router.post("/push", response_model=PushResponse)
+async def push_operations(body: PushRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Receive a batch of operations from the client and apply them.
+    Each operation is processed in its own savepoint so that individual
+    failures do not roll back the entire batch.
+    """
+    service = SyncPushService(db)
+    return await service.process_operations(body.operations)
