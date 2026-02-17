@@ -2,15 +2,14 @@ import type { SyncDB } from "@/lib/db";
 import type { OutboxOperation } from "@/lib/db/models";
 import { api } from "@/lib/api";
 import { logger } from "@/lib/utils/logger";
-import type { PushResult } from "./types";
+import type { PushOperationRequest, PushResult } from "./types";
 
 export class PushService {
   constructor(private db: SyncDB) {}
 
   /**
-   * Push all pending operations to the server
-   * Processes operations sequentially in FIFO order (by sequence_number)
-   * Continues processing even if individual operations fail
+   * Push all pending operations to the server as a single batch
+   * via POST /sync/push. Handles per-operation results (success/conflict/error).
    *
    * @returns PushResult with statistics
    */
@@ -22,147 +21,127 @@ export class PushService {
       errors: [],
     };
 
-    // Get all pending operations sorted by sequence_number (FIFO)
     const operations = await this.db.getPendingOperations();
+    if (operations.length === 0) {
+      return result;
+    }
 
-    // Process each operation sequentially
-    for (const operation of operations) {
-      result.processedCount++;
+    result.processedCount = operations.length;
 
-      try {
-        await this.processOperation(operation);
-        result.successCount++;
-      } catch (error) {
-        result.failedCount++;
-        result.errors.push({
-          operationId: operation.id,
-          error: error instanceof Error ? error : new Error(String(error)),
-        });
-        logger.error(`Failed to sync operation ${operation.id}:`, error);
+    // Map outbox entries to the push request format
+    const pushOperations = operations.map(this.toPushOperation);
+
+    // Mark all as syncing in batch
+    const ids = operations.map((op) => op.id);
+    await this.db.markOperationsSyncing(ids);
+
+    try {
+      const response = await api.syncPush({ operations: pushOperations });
+
+      // Build a lookup from operation_id -> outbox operation for entity updates
+      const outboxById = new Map(operations.map((op) => [op.id, op]));
+
+      let maxSyncId = 0;
+
+      for (const opResult of response.results) {
+        const outboxOp = outboxById.get(opResult.operation_id);
+
+        if (opResult.status === "success" || opResult.status === "conflict") {
+          // Both success and conflict are considered "handled" by the server
+          await this.db.markOperationSynced(opResult.operation_id);
+          result.successCount++;
+
+          // Reconcile version in IndexedDB
+          if (opResult.new_version != null && outboxOp) {
+            await this.db.updateEntityVersion(
+              outboxOp.entity_type,
+              outboxOp.entity_id,
+              opResult.new_version,
+            );
+          }
+
+          // Track highest sync_id
+          if (opResult.sync_id != null && opResult.sync_id > maxSyncId) {
+            maxSyncId = opResult.sync_id;
+          }
+
+          // Log conflict details for observability
+          if (opResult.status === "conflict") {
+            logger.warn(
+              `Operation ${opResult.operation_id} resolved with conflicts:`,
+              opResult.message,
+              opResult.conflicts,
+            );
+          }
+        } else {
+          // error
+          await this.db.markOperationFailed(opResult.operation_id);
+          result.failedCount++;
+          result.errors.push({
+            operationId: opResult.operation_id,
+            error: new Error(opResult.message ?? "Unknown server error"),
+          });
+          logger.error(
+            `Server rejected operation ${opResult.operation_id}:`,
+            opResult.message,
+          );
+        }
       }
+
+      // Advance the sync cursor
+      if (maxSyncId > 0) {
+        const currentSyncId = await this.db.getLastSyncId();
+        if (maxSyncId > currentSyncId) {
+          await this.db.setLastSyncId(maxSyncId);
+        }
+      }
+
+      // Update last sync timestamp
+      if (result.successCount > 0) {
+        await this.db.metadata.put({
+          key: "last_sync_timestamp",
+          value: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      // Network or unexpected error — mark all back to failed
+      for (const op of operations) {
+        await this.db.markOperationFailed(op.id);
+      }
+      result.failedCount = operations.length;
+      result.successCount = 0;
+      result.errors.push({
+        operationId: "batch",
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      logger.error("Batch push failed:", error);
     }
 
     return result;
   }
 
   /**
-   * Process a single operation by dispatching to appropriate handler
-   *
-   * @param operation The outbox operation to process
+   * Convert an OutboxOperation to the PushOperationRequest format
+   * expected by POST /sync/push
    */
-  private async processOperation(operation: OutboxOperation): Promise<void> {
-    // Mark as syncing
-    await this.db.markOperationSyncing(operation.id);
+  private toPushOperation(op: OutboxOperation): PushOperationRequest {
+    const data = (op.data ?? {}) as Record<string, unknown>;
 
-    try {
-      // Dispatch to appropriate handler based on entity_type and operation_type
-      if (operation.entity_type === "pre_order") {
-        switch (operation.operation_type) {
-          case "CREATE":
-            await this.handlePreOrderCreate(operation);
-            break;
-          case "UPDATE":
-            await this.handlePreOrderUpdate(operation);
-            break;
-          case "DELETE":
-            await this.handlePreOrderDelete(operation);
-            break;
-        }
-      } else if (operation.entity_type === "pre_order_flow") {
-        switch (operation.operation_type) {
-          case "CREATE":
-            await this.handlePreOrderFlowCreate(operation);
-            break;
-          case "UPDATE":
-            await this.handlePreOrderFlowUpdate(operation);
-            break;
-          case "DELETE":
-            await this.handlePreOrderFlowDelete(operation);
-            break;
-        }
-      }
+    // Extract expected_version from the data payload
+    const expectedVersion =
+      typeof data.version === "number" ? data.version : null;
 
-      // Mark as synced on success
-      await this.db.markOperationSynced(operation.id);
-    } catch (error) {
-      // Mark as failed on error
-      await this.db.markOperationFailed(operation.id);
-      throw error;
-    }
-  }
+    // Strip internal fields that the server doesn't need
+    const { version: _, created_at: __, updated_at: ___, ...cleanData } = data;
 
-  /**
-   * Handle CREATE operation for pre_order
-   */
-  private async handlePreOrderCreate(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    const data = operation.data as any; // TODO: add dto type
-
-    await api.createPreOrder({
-      partner_id: data.partner_id,
-      delivery_date: data.delivery_date,
-      status: data.status,
-      comment: data.comment,
-    });
-  }
-
-  /**
-   * Handle UPDATE operation for pre_order
-   */
-  private async handlePreOrderUpdate(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    const data = operation.data as any; // TODO: add dto type
-
-    await api.updatePreOrder(operation.entity_id, data);
-  }
-
-  /**
-   * Handle DELETE operation for pre_order
-   */
-  private async handlePreOrderDelete(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    await api.deletePreOrder(operation.entity_id);
-  }
-
-  /**
-   * Handle CREATE operation for pre_order_flow
-   */
-  private async handlePreOrderFlowCreate(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    const data = operation.data as any; // TODO: add dto type
-
-    const preOrderId = data.pre_order_id;
-
-    await api.createFlow(preOrderId, {
-      product_id: data.product_id,
-      unit_id: data.unit_id,
-      quantity: data.quantity,
-      price: data.price,
-      comment: data.comment,
-    });
-  }
-
-  /**
-   * Handle UPDATE operation for pre_order_flow
-   */
-  private async handlePreOrderFlowUpdate(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    const data = operation.data as any; // TODO: add dto type
-
-    await api.updateFlow(operation.entity_id, data);
-  }
-
-  /**
-   * Handle DELETE operation for pre_order_flow
-   */
-  private async handlePreOrderFlowDelete(
-    operation: OutboxOperation,
-  ): Promise<void> {
-    await api.deleteFlow(operation.entity_id);
+    return {
+      id: op.id,
+      entity_type: op.entity_type,
+      entity_id: op.entity_id,
+      operation_type: op.operation_type,
+      data: cleanData,
+      expected_version: expectedVersion,
+      timestamp: op.timestamp,
+    };
   }
 }

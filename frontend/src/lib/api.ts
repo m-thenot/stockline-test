@@ -13,6 +13,7 @@ import type {
   PreOrder as DbPreOrder,
   PreOrderFlow as DbPreOrderFlow,
 } from "./db/models";
+import type { PushRequestBody, PushResponseBody } from "./sync/types";
 
 export interface SnapshotData {
   partners: DbPartner[];
@@ -71,4 +72,9 @@ export const api = {
   deleteFlow: (id: string) =>
     request<{ ok: boolean }>(`/flows/${id}`, { method: "DELETE" }),
   getSnapshot: () => request<SnapshotData>("/sync/snapshot"),
+  syncPush: (body: PushRequestBody) =>
+    request<PushResponseBody>("/sync/push", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

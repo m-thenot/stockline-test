@@ -29,13 +29,14 @@ class ConflictResolution:
 
 class ConflictResolver:
     """
-    Entity-agnostic conflict resolver implementing field-level merge with LWW.
+    Entity-agnostic conflict resolver implementing true field-level merge with LWW.
 
     Rules:
     - Version match -> no conflict, apply all client fields
-    - Version mismatch -> field-level analysis:
-        - Field value identical on server -> auto-merge (no real conflict)
-        - Field value differs -> LWW by timestamp (most recent wins)
+    - Version mismatch -> per-field analysis using operation_log history:
+        - Field value identical on server -> skip (no-op)
+        - Field NOT changed on server since expected_version -> auto-merge (apply)
+        - Field changed on server -> LWW using per-field timestamp from operation_log
     """
 
     def resolve_update(
@@ -45,7 +46,7 @@ class ConflictResolver:
         expected_version: int | None,
         server_version: int,
         client_timestamp: str,
-        server_updated_at: str,
+        server_changed_fields: dict[str, str],
     ) -> ConflictResolution:
         # No version check requested or versions match -> apply directly
         if expected_version is None or expected_version == server_version:
@@ -54,9 +55,8 @@ class ConflictResolver:
                 had_version_mismatch=False,
             )
 
-        # Version mismatch -> field-level merge
+        # Version mismatch -> field-level merge using operation_log history
         client_dt = parse_timestamp(client_timestamp)
-        server_dt = parse_timestamp(server_updated_at)
 
         fields_to_apply: dict = {}
         auto_merged: list[str] = []
@@ -69,9 +69,16 @@ class ConflictResolver:
                 # Client wants the same value the server already has -> no-op
                 continue
 
-            # Real conflict on this field -> LWW by timestamp
-            if client_dt >= server_dt:
-                # Client wins
+            # Field was NOT changed on the server since expected_version -> auto-merge
+            if field_name not in server_changed_fields:
+                fields_to_apply[field_name] = client_value
+                auto_merged.append(field_name)
+                continue
+
+            # Both client and server changed this field -> LWW per field
+            server_field_dt = parse_timestamp(server_changed_fields[field_name])
+
+            if client_dt >= server_field_dt:
                 fields_to_apply[field_name] = client_value
                 lww_resolved.append(
                     FieldConflict(
@@ -82,7 +89,6 @@ class ConflictResolver:
                     )
                 )
             else:
-                # Server wins -> keep server value, don't apply
                 lww_resolved.append(
                     FieldConflict(
                         field=field_name,

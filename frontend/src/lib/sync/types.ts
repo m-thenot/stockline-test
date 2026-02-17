@@ -24,3 +24,39 @@ export interface PushResult {
   failedCount: number; // Failed operations
   errors: Array<{ operationId: string; error: Error }>; // Individual errors
 }
+
+// --- Sync Push request/response types (mirrors backend schemas) ---
+
+export interface PushOperationRequest {
+  id: string;
+  entity_type: "pre_order" | "pre_order_flow";
+  entity_id: string;
+  operation_type: "CREATE" | "UPDATE" | "DELETE";
+  data: Record<string, unknown>;
+  expected_version: number | null;
+  timestamp: string;
+}
+
+export interface PushRequestBody {
+  operations: PushOperationRequest[];
+}
+
+export interface ResolvedFieldConflict {
+  field: string;
+  client_value: string | number | boolean | null;
+  server_value: string | number | boolean | null;
+  winner: "client" | "server";
+}
+
+export interface PushOperationResult {
+  operation_id: string;
+  status: "success" | "conflict" | "error";
+  sync_id: number | null;
+  new_version: number | null;
+  message: string | null;
+  conflicts: ResolvedFieldConflict[] | null;
+}
+
+export interface PushResponseBody {
+  results: PushOperationResult[];
+}

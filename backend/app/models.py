@@ -106,7 +106,6 @@ class OperationLog(Base):
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     operation_type: Mapped[str] = mapped_column(String(10))
     data: Mapped[dict] = mapped_column(JSONB)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), default=None)
     timestamp: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

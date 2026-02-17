@@ -13,6 +13,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
             retry: 1,
             staleTime: Infinity,
+            networkMode: "always",
+          },
+          mutations: {
+            networkMode: "always",
           },
         },
       }),

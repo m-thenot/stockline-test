@@ -4,6 +4,7 @@ import type {
   PreOrderFlow,
   Metadata,
   OutboxOperation,
+  EntityType,
   Partner,
   Product,
   Unit,
@@ -123,6 +124,34 @@ export class SyncDB extends Dexie {
       ...operation,
       sequence_number: sequenceNumber,
     });
+  }
+
+  /**
+   * Batch-mark multiple operations as syncing
+   */
+  async markOperationsSyncing(ids: string[]): Promise<void> {
+    await this.outbox.where("id").anyOf(ids).modify({ status: "syncing" });
+  }
+
+  /**
+   * Batch-mark multiple operations as synced
+   */
+  async markOperationsSynced(ids: string[]): Promise<void> {
+    await this.outbox.where("id").anyOf(ids).modify({ status: "synced" });
+  }
+
+  /**
+   * Update the version of an entity in IndexedDB after server confirms.
+   * Routes to the correct table based on entity_type.
+   */
+  async updateEntityVersion(
+    entityType: EntityType,
+    entityId: string,
+    newVersion: number,
+  ): Promise<void> {
+    const table =
+      entityType === "pre_order" ? this.pre_orders : this.pre_order_flows;
+    await table.update(entityId, { version: newVersion });
   }
 }
 

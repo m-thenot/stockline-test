@@ -43,8 +43,9 @@ class PreOrderSyncService:
         if existing is not None:
             return PushOperationResult(
                 operation_id=op.id,
-                status=PushResultStatus.ERROR,
-                message=f"PreOrder {op.entity_id} already exists",
+                status=PushResultStatus.SUCCESS,
+                new_version=existing.version,
+                message=f"PreOrder {op.entity_id} already exists, no-op",
             )
 
         pre_order = await self._pre_order_repo.create(
@@ -89,16 +90,23 @@ class PreOrderSyncService:
                 message=f"PreOrder {op.entity_id} already deleted, no-op",
             )
 
-        # Field-level merge with LWW
+        # Query which fields changed on the server since the client's version
+        server_changed_fields: dict[str, str] = {}
+        if op.expected_version is not None and op.expected_version != pre_order.version:
+            server_changed_fields = await self._op_log_repo.get_server_changed_fields(
+                entity_type=EntityType.PRE_ORDER,
+                entity_id=op.entity_id,
+                since_version=op.expected_version,
+            )
+
+        # Field-level merge with LWW per field
         resolution = self._conflict_resolver.resolve_update(
             server_state=PreOrderRepository.snapshot(pre_order),
             client_data=op.data,
             expected_version=op.expected_version,
             server_version=pre_order.version,
             client_timestamp=op.timestamp,
-            server_updated_at=pre_order.updated_at.isoformat()
-            if pre_order.updated_at
-            else op.timestamp,
+            server_changed_fields=server_changed_fields,
         )
 
         # Build conflict details for the response
@@ -113,11 +121,14 @@ class PreOrderSyncService:
         ] or None
 
         if not resolution.fields_to_apply:
+            status = PushResultStatus.CONFLICT if resolved_conflicts else PushResultStatus.SUCCESS
             return PushOperationResult(
                 operation_id=op.id,
-                status=PushResultStatus.CONFLICT,
+                status=status,
                 new_version=pre_order.version,
-                message="All fields overridden by server",
+                message="All fields overridden by server"
+                if resolved_conflicts
+                else "No changes to apply, no-op",
                 conflicts=resolved_conflicts,
             )
 
@@ -127,7 +138,7 @@ class PreOrderSyncService:
             entity_type=EntityType.PRE_ORDER,
             entity_id=pre_order.id,
             operation_type=OperationType.UPDATE,
-            data=PreOrderRepository.snapshot(pre_order),
+            data={**resolution.fields_to_apply, "version": pre_order.version},
         )
 
         return PushOperationResult(

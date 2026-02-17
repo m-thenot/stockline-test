@@ -90,8 +90,11 @@ export abstract class Repository<
     // Update in table
     await table.put(updated);
 
-    // Record in outbox
-    await this.recordOperation(id, "UPDATE", updated);
+    // Record in outbox — only the delta + version (BEFORE increment, for conflict resolution)
+    await this.recordOperation(id, "UPDATE", {
+      ...data,
+      version: current.version,
+    });
 
     return updated;
   }

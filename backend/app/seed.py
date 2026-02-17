@@ -132,6 +132,8 @@ async def seed_database(session: AsyncSession) -> None:
             status=0,
             order_date=today,
             delivery_date=today,
+            version=1,
+            deleted_at=None,
         ),
         PreOrder(
             id=PRE_ORDER_2,
@@ -139,6 +141,8 @@ async def seed_database(session: AsyncSession) -> None:
             status=1,
             order_date=today,
             delivery_date=today,
+            version=1,
+            deleted_at=None,
         ),
         PreOrder(
             id=PRE_ORDER_3,
@@ -146,6 +150,8 @@ async def seed_database(session: AsyncSession) -> None:
             status=0,
             order_date=today,
             delivery_date=today,
+            version=1,
+            deleted_at=None,
         ),
     ]
     session.add_all(pre_orders)
@@ -160,6 +166,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=5,
             price=12.50,
             unit_id=UNIT_KG,
+            version=1,
+            deleted_at=None,
         ),
         PreOrderFlow(
             id=FLOW_1B,
@@ -168,6 +176,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=3,
             price=18.00,
             unit_id=UNIT_KG,
+            version=1,
+            deleted_at=None,
         ),
         PreOrderFlow(
             id=FLOW_1C,
@@ -176,6 +186,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=2,
             price=22.00,
             unit_id=UNIT_KG,
+            version=1,
+            deleted_at=None,
         ),
         # Pre-order 2: Dupont Fish Market - 2 flows
         PreOrderFlow(
@@ -185,6 +197,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=10,
             price=35.00,
             unit_id=UNIT_KG,
+            version=1,
+            deleted_at=None,
         ),
         PreOrderFlow(
             id=FLOW_2B,
@@ -193,6 +207,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=8,
             price=8.50,
             unit_id=UNIT_PCE,
+            version=1,
+            deleted_at=None,
         ),
         # Pre-order 3: Atlantic Hotel - 2 flows
         PreOrderFlow(
@@ -202,6 +218,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=4,
             price=45.00,
             unit_id=UNIT_PCE,
+            version=1,
+            deleted_at=None,
         ),
         PreOrderFlow(
             id=FLOW_3B,
@@ -210,6 +228,8 @@ async def seed_database(session: AsyncSession) -> None:
             quantity=2,
             price=38.00,
             unit_id=UNIT_CRT,
+            version=1,
+            deleted_at=None,
         ),
     ]
     session.add_all(flows)
