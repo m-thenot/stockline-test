@@ -25,7 +25,11 @@ export function PartnerCard({
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <Card className="mb-4">
+    <Card
+      className="mb-4"
+      data-testid="partner-card"
+      data-partner-id={partner.id}
+    >
       <CardHeader
         className="flex flex-row items-center gap-3 cursor-pointer select-none pb-3 pt-4 px-4"
         onClick={() => setExpanded(!expanded)}

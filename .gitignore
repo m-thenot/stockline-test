@@ -4,3 +4,7 @@ node_modules/
 __pycache__/
 *.pyc
 package-lock.json
+
+# Playwright test results
+test-results/
+playwright-report/

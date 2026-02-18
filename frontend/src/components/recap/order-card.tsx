@@ -30,14 +30,17 @@ export function OrderCard({ order, date, products, units }: OrderCardProps) {
     }
   };
 
+  const orderIdSuffix = order.id.slice(-8);
+
   return (
-    <Card className="mb-3">
+    <Card className="mb-3" data-testid="order-card" data-order-id={order.id}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-4 px-4">
         <div className="flex items-center gap-3">
           <Badge
             className="cursor-pointer select-none"
             variant={order.status === 1 ? "default" : "secondary"}
             onClick={handleToggleStatus}
+            data-testid={`order-status-badge-${orderIdSuffix}`}
           >
             {order.status === 1 ? "Confirmed" : "Pending"}
           </Badge>
@@ -52,6 +55,7 @@ export function OrderCard({ order, date, products, units }: OrderCardProps) {
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-destructive"
           onClick={handleDelete}
+          data-testid="order-delete-button"
         >
           <Trash2 className="h-4 w-4" />
         </Button>

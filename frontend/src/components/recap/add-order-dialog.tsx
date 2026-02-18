@@ -63,12 +63,12 @@ export function AddOrderDialog({ date }: AddOrderDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" data-testid="add-order-button">
           <Plus className="mr-1 h-4 w-4" />
           Add Order
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="add-order-dialog">
         <DialogHeader>
           <DialogTitle>New Pre-Order</DialogTitle>
           <DialogDescription>
@@ -79,7 +79,7 @@ export function AddOrderDialog({ date }: AddOrderDialogProps) {
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">Partner</label>
             <Select value={partnerId} onValueChange={setPartnerId}>
-              <SelectTrigger>
+              <SelectTrigger data-testid="add-order-partner-select">
                 <SelectValue placeholder="Select a partner" />
               </SelectTrigger>
               <SelectContent>
@@ -97,6 +97,7 @@ export function AddOrderDialog({ date }: AddOrderDialogProps) {
               type="date"
               value={deliveryDate}
               onChange={(e) => setDeliveryDate(e.target.value)}
+              data-testid="add-order-delivery-date"
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -105,16 +106,22 @@ export function AddOrderDialog({ date }: AddOrderDialogProps) {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Add a comment..."
+              data-testid="add-order-comment"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            data-testid="add-order-cancel-button"
+          >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!partnerId || !deliveryDate || createPreOrder.isPending}
+            data-testid="add-order-create-button"
           >
             Create Order
           </Button>

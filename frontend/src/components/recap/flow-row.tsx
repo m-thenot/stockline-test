@@ -85,10 +85,17 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
   };
 
   return (
-    <div className="flex items-center gap-2 py-1.5">
+    <div
+      className="flex items-center gap-2 py-1.5"
+      data-testid="flow-row"
+      data-flow-id={flow.id}
+    >
       <div className="w-[200px]">
         <Select value={flow.product_id} onValueChange={handleProductChange}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger
+            className="h-8 text-xs"
+            data-testid="flow-product-select"
+          >
             <SelectValue placeholder="Product" />
           </SelectTrigger>
           <SelectContent>
@@ -107,11 +114,12 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
           onChange={(e) => handleQuantityChange(e.target.value)}
           className="h-8 text-xs"
           placeholder="Qty"
+          data-testid="flow-quantity-input"
         />
       </div>
       <div className="w-[120px]">
         <Select value={flow.unit_id} onValueChange={handleUnitChange}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs" data-testid="flow-unit-select">
             <SelectValue placeholder="Unit" />
           </SelectTrigger>
           <SelectContent>
@@ -131,6 +139,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
           className="h-8 text-xs"
           placeholder="Price"
           step="0.01"
+          data-testid="flow-price-input"
         />
       </div>
       <div className="flex-1">
@@ -139,6 +148,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
           onChange={(e) => handleCommentChange(e.target.value)}
           className="h-8 text-xs"
           placeholder="Comment"
+          data-testid="flow-comment-input"
         />
       </div>
       <Button
@@ -146,6 +156,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-destructive"
         onClick={handleDelete}
+        data-testid="flow-delete-button"
       >
         <X className="h-3.5 w-3.5" />
       </Button>

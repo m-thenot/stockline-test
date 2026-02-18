@@ -53,7 +53,13 @@ class QueryInvalidator {
   invalidateAll(): void {
     const client = this.ensureClient();
     if (!client) return;
-    client.invalidateQueries({ queryKey: ["recap"] });
+
+    const keys = ["units", "products", "partners", "recap"] as const;
+
+    keys.forEach((key) => {
+      client.invalidateQueries({ queryKey: [key] });
+    });
+
     logger.debug("Invalidated all recap queries");
   }
 }

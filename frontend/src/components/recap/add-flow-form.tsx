@@ -29,6 +29,8 @@ export function AddFlowForm({
 }: AddFlowFormProps) {
   const { createFlow } = useRecap(date);
 
+  const orderIdSuffix = preOrderId.slice(-8);
+
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitId, setUnitId] = useState("");
@@ -66,7 +68,10 @@ export function AddFlowForm({
     <div className="flex items-center gap-2 border-t pt-2 mt-2">
       <div className="w-[200px]">
         <Select value={productId} onValueChange={setProductId}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger
+            className="h-8 text-xs"
+            data-testid={`add-flow-product-select-${orderIdSuffix}`}
+          >
             <SelectValue placeholder="Product" />
           </SelectTrigger>
           <SelectContent>
@@ -85,11 +90,15 @@ export function AddFlowForm({
           onChange={(e) => setQuantity(e.target.value)}
           className="h-8 text-xs"
           placeholder="Qty"
+          data-testid={`add-flow-quantity-input-${orderIdSuffix}`}
         />
       </div>
       <div className="w-[120px]">
         <Select value={unitId} onValueChange={setUnitId}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger
+            className="h-8 text-xs"
+            data-testid={`add-flow-unit-select-${orderIdSuffix}`}
+          >
             <SelectValue placeholder="Unit" />
           </SelectTrigger>
           <SelectContent>
@@ -109,6 +118,7 @@ export function AddFlowForm({
           className="h-8 text-xs"
           placeholder="Price"
           step="0.01"
+          data-testid={`add-flow-price-input-${orderIdSuffix}`}
         />
       </div>
       <div className="flex-1" />
@@ -119,6 +129,7 @@ export function AddFlowForm({
         disabled={
           !productId || !quantity || !unitId || !price || createFlow.isPending
         }
+        data-testid={`add-flow-button-${orderIdSuffix}`}
       >
         <Plus className="mr-1 h-3.5 w-3.5" />
         Add
