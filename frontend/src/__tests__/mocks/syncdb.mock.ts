@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { Mocked, vi } from "vitest";
 import type { SyncDB } from "@/lib/db";
 import type { OutboxOperation } from "@/lib/db/models";
 
@@ -6,7 +6,7 @@ import type { OutboxOperation } from "@/lib/db/models";
  * Create a mock SyncDB instance with all necessary methods
  * Each method is a vi.fn() spy that can be configured per test
  */
-export function createMockSyncDB(): SyncDB {
+export function createMockSyncDB(): Mocked<SyncDB> {
   const mockDB = {
     // Outbox operations
     getPendingOperations: vi.fn(() => Promise.resolve([])),
@@ -23,6 +23,16 @@ export function createMockSyncDB(): SyncDB {
       get: vi.fn(() => Promise.resolve(undefined)),
     },
 
+    // Entity tables
+    pre_orders: {
+      update: vi.fn(() => Promise.resolve()),
+      get: vi.fn(() => Promise.resolve(undefined)),
+    },
+    pre_order_flows: {
+      update: vi.fn(() => Promise.resolve()),
+      get: vi.fn(() => Promise.resolve(undefined)),
+    },
+
     // Other methods (if needed)
     getLastSyncId: vi.fn(() => Promise.resolve(0)),
     setLastSyncId: vi.fn(() => Promise.resolve()),
@@ -30,7 +40,7 @@ export function createMockSyncDB(): SyncDB {
     addOutboxOperation: vi.fn(() => Promise.resolve()),
   } as unknown as SyncDB;
 
-  return mockDB;
+  return mockDB as Mocked<SyncDB>;
 }
 
 /**

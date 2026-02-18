@@ -2,7 +2,12 @@ import type { SyncDB } from "@/lib/db";
 import type { OutboxOperation } from "@/lib/db/models";
 import { api } from "@/lib/api";
 import { logger } from "@/lib/utils/logger";
-import type { PushOperationRequest, PushResult } from "./types";
+import { queryInvalidator } from "./QueryInvalidator";
+import type {
+  PushOperationRequest,
+  PushResult,
+  PushOperationResult,
+} from "./types";
 
 export class PushService {
   constructor(private db: SyncDB) {}
@@ -58,46 +63,56 @@ export class PushService {
       // Build a lookup from operation_id -> outbox operation for entity updates
       const outboxById = new Map(toSend.map((op) => [op.id, op]));
 
-      for (const opResult of response.results) {
-        const outboxOp = outboxById.get(opResult.operation_id);
+      // Process all results in parallel
+      const processResults = await Promise.allSettled(
+        response.results.map((opResult) =>
+          this.processOperationResult(opResult, outboxById),
+        ),
+      );
 
-        if (opResult.status === "success" || opResult.status === "conflict") {
-          // Both success and conflict are considered "handled" by the server
-          await this.db.markOperationSynced(opResult.operation_id);
-          result.successCount++;
+      // Collect results and affected pre_order IDs for cache invalidation
+      const affectedPreOrderIds = new Set<string>();
 
-          // Reconcile version in IndexedDB
-          if (opResult.new_version != null && outboxOp) {
-            await this.db.updateEntityVersion(
-              outboxOp.entity_type,
-              outboxOp.entity_id,
-              opResult.new_version,
-            );
-          }
+      for (let i = 0; i < processResults.length; i++) {
+        const settledResult = processResults[i];
+        const opResult = response.results[i];
 
-          // Log conflict details for observability
-          if (opResult.status === "conflict") {
-            logger.warn(
-              `Operation ${opResult.operation_id} resolved with conflicts:`,
-              opResult.message,
-              opResult.conflicts,
-            );
+        if (settledResult.status === "fulfilled") {
+          const { success, affectedPreOrderId } = settledResult.value;
+
+          if (success) {
+            result.successCount++;
+
+            // Track pre_order IDs for cache invalidation
+            if (affectedPreOrderId) {
+              affectedPreOrderIds.add(affectedPreOrderId);
+            }
+          } else {
+            result.failedCount++;
+            result.errors.push({
+              operationId: opResult.operation_id,
+              error: new Error(opResult.message ?? "Unknown server error"),
+            });
           }
         } else {
-          await this.db.markOperationRejected(
-            opResult.operation_id,
-            opResult.message ?? undefined,
-          );
+          // Promise rejected (unexpected error during processing)
           result.failedCount++;
           result.errors.push({
             operationId: opResult.operation_id,
-            error: new Error(opResult.message ?? "Unknown server error"),
+            error: settledResult.reason,
           });
           logger.error(
-            `Server rejected operation ${opResult.operation_id} (permanent):`,
-            opResult.message,
+            `Failed to process operation result ${opResult.operation_id}:`,
+            settledResult.reason,
           );
         }
+      }
+
+      // Invalidate cache for affected pre_orders
+      if (affectedPreOrderIds.size > 0) {
+        queryInvalidator.invalidatePreOrdersByIds(
+          Array.from(affectedPreOrderIds),
+        );
       }
 
       // Update last push timestamp
@@ -257,6 +272,120 @@ export class PushService {
     }
 
     return { toSend, toRemoveIds };
+  }
+
+  /**
+   * Process a single operation result from the server
+   * Handles success, conflicts, and rejections
+   *
+   * @returns Object with success flag and affected pre_order ID (for cache invalidation)
+   */
+  private async processOperationResult(
+    opResult: PushOperationResult,
+    outboxById: Map<string, OutboxOperation>,
+  ): Promise<{ success: boolean; affectedPreOrderId: string | null }> {
+    const outboxOp = outboxById.get(opResult.operation_id);
+
+    if (opResult.status === "success" || opResult.status === "conflict") {
+      // Both success and conflict are considered "handled" by the server
+      await this.db.markOperationSynced(opResult.operation_id);
+
+      // Reconcile version in IndexedDB
+      if (opResult.new_version != null && outboxOp) {
+        await this.db.updateEntityVersion(
+          outboxOp.entity_type,
+          outboxOp.entity_id,
+          opResult.new_version,
+        );
+      }
+
+      // Handle conflicts - update entity with server values when server wins
+      if (opResult.status === "conflict" && opResult.conflicts && outboxOp) {
+        const serverUpdates: Record<string, unknown> = {};
+
+        for (const conflict of opResult.conflicts) {
+          if (conflict.winner === "server") {
+            serverUpdates[conflict.field] = conflict.server_value;
+          }
+        }
+
+        // Update entity in DB with server values
+        if (Object.keys(serverUpdates).length > 0) {
+          const table =
+            outboxOp.entity_type === "pre_order"
+              ? this.db.pre_orders
+              : this.db.pre_order_flows;
+          await table.update(outboxOp.entity_id, serverUpdates);
+        }
+
+        logger.warn(
+          `Operation ${opResult.operation_id} resolved with conflicts:`,
+          opResult.message,
+          opResult.conflicts,
+        );
+      }
+
+      // Get the pre_order_id for cache invalidation
+      const preOrderId = await this.getPreOrderIdForCacheInvalidation(outboxOp);
+
+      return {
+        success: true,
+        affectedPreOrderId: preOrderId,
+      };
+    } else {
+      // Server rejected the operation (permanent error)
+      await this.db.markOperationRejected(
+        opResult.operation_id,
+        opResult.message ?? undefined,
+      );
+      logger.error(
+        `Server rejected operation ${opResult.operation_id} (permanent):`,
+        opResult.message,
+      );
+
+      return {
+        success: false,
+        affectedPreOrderId: null,
+      };
+    }
+  }
+
+  /**
+   * Get the pre_order_id for cache invalidation
+   * For pre_orders: return the entity_id directly
+   * For pre_order_flows: extract pre_order_id from the operation data or fetch from DB
+   */
+  private async getPreOrderIdForCacheInvalidation(
+    outboxOp: OutboxOperation | undefined,
+  ): Promise<string | null> {
+    if (!outboxOp) return null;
+
+    if (outboxOp.entity_type === "pre_order") {
+      return outboxOp.entity_id;
+    }
+
+    // For pre_order_flow, get the pre_order_id
+    if (outboxOp.entity_type === "pre_order_flow") {
+      // Try to get pre_order_id from operation data first (works for all operation types)
+      const data = outboxOp.data as { pre_order_id?: string } | undefined;
+      if (data?.pre_order_id) {
+        return data.pre_order_id;
+      }
+
+      // Fallback: fetch from DB (only works if flow still exists, not for DELETE)
+      try {
+        const flow = await this.db.pre_order_flows.get(outboxOp.entity_id);
+        return flow?.pre_order_id ?? null;
+      } catch (error) {
+        logger.warn(
+          `Could not get pre_order_id for flow ${outboxOp.entity_id}:`,
+          error,
+        );
+        return null;
+      }
+    }
+
+    return null;
   }
 
   /**
