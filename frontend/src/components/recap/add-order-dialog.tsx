@@ -63,7 +63,7 @@ export function AddOrderDialog({ date }: AddOrderDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" data-testid="add-order-button">
+        <Button size="default" data-testid="add-order-button">
           <Plus className="mr-1 h-4 w-4" />
           Add Order
         </Button>

@@ -11,9 +11,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useMemo } from "react";
 
 export default function PartnersPage() {
-  const { data: partners, isLoading } = usePartners();
+  const { data, isLoading } = usePartners();
+  const partners = useMemo(
+    () => data?.sort((a, b) => a.name.localeCompare(b.name)),
+    [data],
+  );
 
   const clientsCount = partners?.filter((p) => p.type === 1).length || 0;
   const suppliersCount = partners?.filter((p) => p.type === 2).length || 0;

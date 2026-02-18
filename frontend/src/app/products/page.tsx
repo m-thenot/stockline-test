@@ -9,9 +9,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useMemo } from "react";
 
 export default function ProductsPage() {
-  const { data: products, isLoading } = useProducts();
+  const { data, isLoading } = useProducts();
+  const products = useMemo(
+    () => data?.sort((a, b) => a.name.localeCompare(b.name)),
+    [data],
+  );
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-8">

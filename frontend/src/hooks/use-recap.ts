@@ -94,6 +94,8 @@ async function getRecapFromLocalDb(date: string): Promise<RecapGroup[]> {
   return Array.from(groupMap.values());
 }
 
+// TODO: Normalize the TanStack Query cache to enable fine-grained per-entity invalidation.
+// Refactor useRecap into a derived view that composes normalized caches instead of a single monolithic joined query.
 export function useRecap(date: string) {
   const queryClient = useQueryClient();
 
