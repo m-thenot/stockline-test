@@ -84,15 +84,17 @@ export class PushService {
             );
           }
         } else {
-          // error
-          await this.db.markOperationFailed(opResult.operation_id);
+          await this.db.markOperationRejected(
+            opResult.operation_id,
+            opResult.message ?? undefined,
+          );
           result.failedCount++;
           result.errors.push({
             operationId: opResult.operation_id,
             error: new Error(opResult.message ?? "Unknown server error"),
           });
           logger.error(
-            `Server rejected operation ${opResult.operation_id}:`,
+            `Server rejected operation ${opResult.operation_id} (permanent):`,
             opResult.message,
           );
         }
@@ -106,9 +108,13 @@ export class PushService {
         });
       }
     } catch (error) {
-      // Network or unexpected error — mark remaining ops back to failed
+      // Network or unexpected error (timeout, 500, 503, etc.)
+      // These are retryable errors — mark ops as failed with exponential backoff
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       for (const op of toSend) {
-        await this.db.markOperationFailed(op.id);
+        await this.db.markOperationFailed(op.id, errorMessage);
       }
       result.failedCount = toSend.length;
       result.successCount = 0;
@@ -116,7 +122,7 @@ export class PushService {
         operationId: "batch",
         error: error instanceof Error ? error : new Error(String(error)),
       });
-      logger.error("Batch push failed:", error);
+      logger.error("Batch push failed (network error, will retry):", error);
     }
 
     return result;

@@ -26,7 +26,7 @@ export class SyncDB extends Dexie {
       metadata: "key",
       pre_orders: "id, partner_id, delivery_date, created_at",
       pre_order_flows: "id, pre_order_id, product_id",
-      outbox: "id, sequence_number, status",
+      outbox: "id, sequence_number, status, next_retry_at",
       partners: "id, name",
       products: "id, name",
       units: "id, name",
@@ -78,12 +78,28 @@ export class SyncDB extends Dexie {
 
   /**
    * Get all pending operations from outbox (ordered by sequence)
+   * Includes both "pending" operations and "failed" operations that are ready for retry
    */
   async getPendingOperations(): Promise<OutboxOperation[]> {
-    return await this.outbox
+    const now = Date.now();
+
+    // Get pending operations
+    const pending = await this.outbox
       .where("status")
       .equals("pending")
-      .sortBy("sequence_number");
+      .toArray();
+
+    // Get failed operations that are ready for retry
+    const failedReady = await this.outbox
+      .where("status")
+      .equals("failed")
+      .filter((op) => op.next_retry_at !== null && op.next_retry_at <= now)
+      .toArray();
+
+    // Combine and sort by sequence_number
+    return [...pending, ...failedReady].sort(
+      (a, b) => a.sequence_number - b.sequence_number,
+    );
   }
 
   /**
@@ -102,27 +118,71 @@ export class SyncDB extends Dexie {
 
   /**
    * Mark an operation as failed and increment retry count
+   * Calculates next_retry_at with exponential backoff
    */
-  async markOperationFailed(operationId: string): Promise<void> {
+  async markOperationFailed(
+    operationId: string,
+    errorMessage?: string,
+  ): Promise<void> {
     const operation = await this.outbox.get(operationId);
-    if (operation) {
-      await this.outbox.update(operationId, {
-        status: "failed",
-        retry_count: operation.retry_count + 1,
-      });
+    if (!operation) {
+      return;
     }
+
+    const newRetryCount = operation.retry_count + 1;
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 1000; // 1 second
+    const MAX_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+
+    let next_retry_at: number | null = null;
+
+    if (newRetryCount <= MAX_RETRIES) {
+      // Calculate exponential backoff: BASE_DELAY * (2 ^ retry_count)
+      const delayMs = Math.min(
+        BASE_DELAY_MS * Math.pow(2, newRetryCount - 1),
+        MAX_DELAY_MS,
+      );
+      next_retry_at = Date.now() + delayMs;
+    }
+    // If newRetryCount > MAX_RETRIES, next_retry_at remains null (permanently failed)
+
+    await this.outbox.update(operationId, {
+      status: "failed",
+      retry_count: newRetryCount,
+      next_retry_at,
+      last_error: errorMessage ?? null,
+    });
+  }
+
+  /**
+   * Mark an operation as permanently rejected by the server
+   * Used for business errors (validation, conflicts, etc.) that should NOT be retried
+   */
+  async markOperationRejected(
+    operationId: string,
+    errorMessage?: string,
+  ): Promise<void> {
+    await this.outbox.update(operationId, {
+      status: "rejected",
+      last_error: errorMessage ?? null,
+    });
   }
 
   /**
    * Add a new operation to the outbox
    */
   async addOutboxOperation(
-    operation: Omit<OutboxOperation, "sequence_number">,
+    operation: Omit<
+      OutboxOperation,
+      "sequence_number" | "next_retry_at" | "last_error"
+    >,
   ): Promise<void> {
     const sequenceNumber = await this.getNextSequenceNumber();
     await this.outbox.add({
       ...operation,
       sequence_number: sequenceNumber,
+      next_retry_at: null,
+      last_error: null,
     });
   }
 

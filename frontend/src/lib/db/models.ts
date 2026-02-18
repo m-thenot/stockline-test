@@ -1,6 +1,11 @@
 export type OperationType = "CREATE" | "UPDATE" | "DELETE";
 export type EntityType = "pre_order" | "pre_order_flow";
-export type OperationStatus = "pending" | "syncing" | "synced" | "failed";
+export type OperationStatus =
+  | "pending"
+  | "syncing"
+  | "synced"
+  | "failed"
+  | "rejected";
 
 /**
  * PreOrder Entity
@@ -57,6 +62,8 @@ export interface OutboxOperation {
   status: OperationStatus;
   retry_count: number;
   sequence_number: number;
+  next_retry_at: number | null; // Timestamp (ms) for next retry attempt
+  last_error: string | null; // Last error message for debugging
 }
 
 /**

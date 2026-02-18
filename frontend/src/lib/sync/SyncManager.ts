@@ -27,12 +27,14 @@ export class SyncManager {
   private config: SyncConfig = {
     pushIntervalMs: 30000, // 30 seconds
     enableAutoPush: true,
+    retryCheckIntervalMs: 5000, // Check for retries every 5s
+    pullDebounceMs: 100, // Debounce rapid SSE events
   };
 
   private pushIntervalId: number | null = null;
   private isPushing = false;
   private pullDebounceTimer: number | null = null;
-  private readonly PULL_DEBOUNCE_MS = 100; // Debounce rapid SSE events
+  private retryCheckIntervalId: number | null = null;
 
   // Sync queue to serialize push/pull operations
   private syncQueue: Array<{
@@ -116,6 +118,13 @@ export class SyncManager {
         }
       }, this.config.pushIntervalMs);
     }
+
+    // Schedule retry checker (active retry scheduling)
+    this.retryCheckIntervalId = window.setInterval(() => {
+      this.checkForRetries().catch((error) => {
+        logger.error("Retry check failed:", error);
+      });
+    }, this.config.retryCheckIntervalMs);
   }
 
   /**
@@ -125,6 +134,10 @@ export class SyncManager {
     if (this.pushIntervalId !== null) {
       clearInterval(this.pushIntervalId);
       this.pushIntervalId = null;
+    }
+    if (this.retryCheckIntervalId !== null) {
+      clearInterval(this.retryCheckIntervalId);
+      this.retryCheckIntervalId = null;
     }
     this.sseService.disconnect();
     if (this.pullDebounceTimer !== null) {
@@ -407,7 +420,7 @@ export class SyncManager {
           logger.error("Pull after SSE event failed:", error);
         });
       }
-    }, this.PULL_DEBOUNCE_MS);
+    }, this.config.pullDebounceMs);
   }
 
   /**
@@ -416,5 +429,35 @@ export class SyncManager {
   private async updatePendingCount(): Promise<void> {
     const operations = await db.getPendingOperations();
     this.pendingOperations = operations.length;
+  }
+
+  /**
+   * Check for failed operations that are ready for retry
+   * Triggers push if any retries are ready
+   */
+  private async checkForRetries(): Promise<void> {
+    if (!this.isOnline()) {
+      return;
+    }
+
+    const now = Date.now();
+
+    // Get failed operations that are ready for retry
+    const failedOps = await db.outbox
+      .where("status")
+      .equals("failed")
+      .filter((op) => op.next_retry_at !== null && op.next_retry_at <= now)
+      .toArray();
+
+    if (failedOps.length > 0) {
+      logger.info(
+        `Found ${failedOps.length} operations ready for retry, triggering push`,
+      );
+
+      // Trigger push to process retries
+      this.push().catch((error) => {
+        logger.error("Retry push failed:", error);
+      });
+    }
   }
 }

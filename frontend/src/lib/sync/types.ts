@@ -4,6 +4,8 @@ export type ConnectionState = "online" | "offline" | "unknown";
 export interface SyncConfig {
   pushIntervalMs: number; // Polling interval for auto-push (default: 30000ms)
   enableAutoPush: boolean; // Enable automatic push (default: true)
+  retryCheckIntervalMs: number; // Check for retries interval (default: 5000ms)
+  pullDebounceMs: number; // Debounce rapid SSE events (default: 100ms)
 }
 
 /**
