@@ -184,13 +184,21 @@ export class PullService {
 
     if (data.pre_orders.length > 0) {
       await this.db.pre_orders.bulkPut(
-        data.pre_orders.map((po) => ({ ...po, version: 1 })),
+        data.pre_orders.map((po) => ({
+          ...po,
+          version: 1,
+          deleted_at: po.deleted_at ?? null,
+        })),
       );
     }
 
     if (data.flows.length > 0) {
       await this.db.pre_order_flows.bulkPut(
-        data.flows.map((f) => ({ ...f, version: 1 })),
+        data.flows.map((f) => ({
+          ...f,
+          version: 1,
+          deleted_at: f.deleted_at ?? null,
+        })),
       );
     }
 
@@ -320,24 +328,43 @@ export class PullService {
 
   /**
    * Re-apply a local DELETE operation to the DB.
-   * Removes the entity from the local database.
+   * Soft deletes the entity (sets deleted_at timestamp).
    */
   private async reapplyLocalDelete(
     entityType: EntityType,
     entityId: string,
   ): Promise<void> {
+    const now = new Date().toISOString();
     if (entityType === "pre_order") {
-      await this.db.pre_orders.delete(entityId);
-      // Also delete associated flows
-      const flows = await this.db.pre_order_flows
-        .where("pre_order_id")
-        .equals(entityId)
-        .toArray();
-      for (const flow of flows) {
-        await this.db.pre_order_flows.delete(flow.id);
+      const existing = await this.db.pre_orders.get(entityId);
+      if (existing) {
+        await this.db.pre_orders.update(entityId, {
+          deleted_at: now,
+          version: existing.version + 1,
+          updated_at: now,
+        });
+        // Also soft delete associated flows
+        const flows = await this.db.pre_order_flows
+          .where("pre_order_id")
+          .equals(entityId)
+          .toArray();
+        for (const flow of flows) {
+          await this.db.pre_order_flows.update(flow.id, {
+            deleted_at: now,
+            version: flow.version + 1,
+            updated_at: now,
+          });
+        }
       }
     } else if (entityType === "pre_order_flow") {
-      await this.db.pre_order_flows.delete(entityId);
+      const existing = await this.db.pre_order_flows.get(entityId);
+      if (existing) {
+        await this.db.pre_order_flows.update(entityId, {
+          deleted_at: now,
+          version: existing.version + 1,
+          updated_at: now,
+        });
+      }
     }
   }
 
@@ -394,6 +421,7 @@ export class PullService {
         created_at: (data.created_at as string) || null,
         updated_at: (data.updated_at as string) || null,
         version,
+        deleted_at: (data.deleted_at as string) || null,
       };
 
       await this.db.pre_orders.put(preOrder);
@@ -415,17 +443,34 @@ export class PullService {
         updates.updated_at = (data.updated_at as string) || null;
       }
 
+      // Handle deleted_at if present (from server operations)
+      if (data.deleted_at !== undefined) {
+        updates.deleted_at = (data.deleted_at as string) || null;
+      }
+
       await this.db.pre_orders.update(entityId, updates);
     } else if (operationType === "DELETE") {
-      // DELETE: remove from IndexedDB
-      await this.db.pre_orders.delete(entityId);
-      // Also delete associated flows
-      const flows = await this.db.pre_order_flows
-        .where("pre_order_id")
-        .equals(entityId)
-        .toArray();
-      for (const flow of flows) {
-        await this.db.pre_order_flows.delete(flow.id);
+      // Soft delete: set deleted_at timestamp
+      const now = new Date().toISOString();
+      const existing = await this.db.pre_orders.get(entityId);
+      if (existing) {
+        await this.db.pre_orders.update(entityId, {
+          deleted_at: now,
+          version: existing.version + 1,
+          updated_at: now,
+        });
+        // Also soft delete associated flows
+        const flows = await this.db.pre_order_flows
+          .where("pre_order_id")
+          .equals(entityId)
+          .toArray();
+        for (const flow of flows) {
+          await this.db.pre_order_flows.update(flow.id, {
+            deleted_at: now,
+            version: flow.version + 1,
+            updated_at: now,
+          });
+        }
       }
     }
   }
@@ -452,6 +497,7 @@ export class PullService {
         created_at: (data.created_at as string) || null,
         updated_at: (data.updated_at as string) || null,
         version,
+        deleted_at: (data.deleted_at as string) || null,
       };
 
       await this.db.pre_order_flows.put(flow);
@@ -476,9 +522,23 @@ export class PullService {
         updates.updated_at = (data.updated_at as string) || null;
       }
 
+      // Handle deleted_at if present (from server operations)
+      if (data.deleted_at !== undefined) {
+        updates.deleted_at = (data.deleted_at as string) || null;
+      }
+
       await this.db.pre_order_flows.update(entityId, updates);
     } else if (operationType === "DELETE") {
-      await this.db.pre_order_flows.delete(entityId);
+      // Soft delete: set deleted_at timestamp
+      const now = new Date().toISOString();
+      const existing = await this.db.pre_order_flows.get(entityId);
+      if (existing) {
+        await this.db.pre_order_flows.update(entityId, {
+          deleted_at: now,
+          version: existing.version + 1,
+          updated_at: now,
+        });
+      }
     }
   }
 

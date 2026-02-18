@@ -21,17 +21,43 @@ interface FlowRowProps {
   units: Unit[];
 }
 
+type Draft = { quantity: string; price: string; comment: string };
+
 export function FlowRow({ flow, date, products, units }: FlowRowProps) {
   const { updateFlow, deleteFlow } = useRecap(date);
 
-  const [quantity, setQuantity] = useState(String(flow.quantity));
-  const [price, setPrice] = useState(String(flow.price));
-  const [comment, setComment] = useState(flow.comment || "");
+  const [draft, setDraft] = useState<Draft>(() => ({
+    quantity: String(flow.quantity),
+    price: String(flow.price),
+    comment: flow.comment ?? "",
+  }));
 
+  const isEditingRef = useRef(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const mutateRef = useRef(updateFlow.mutate);
-  // eslint-disable-next-line react-hooks/refs
-  mutateRef.current = updateFlow.mutate;
+
+  useEffect(() => {
+    // TODO: should be refactored / updating a field prevent receiving the latest value from another field
+    if (isEditingRef.current) return;
+
+    const nextDraft = {
+      quantity: String(flow.quantity),
+      price: String(flow.price),
+      comment: flow.comment ?? "",
+    };
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft((prev) => {
+      if (
+        prev.quantity === nextDraft.quantity &&
+        prev.price === nextDraft.price &&
+        prev.comment === nextDraft.comment
+      ) {
+        return prev;
+      }
+
+      return nextDraft;
+    });
+  }, [flow.quantity, flow.price, flow.comment]);
 
   const debouncedUpdate = (data: Record<string, unknown>) => {
     if (debounceRef.current) {
@@ -39,8 +65,8 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
     }
 
     debounceRef.current = setTimeout(() => {
-      mutateRef.current({ id: flow.id, data });
-    }, 500);
+      updateFlow.mutate({ id: flow.id, data });
+    }, 1000);
   };
 
   useEffect(() => {
@@ -60,7 +86,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
   };
 
   const handleQuantityChange = (value: string) => {
-    setQuantity(value);
+    setDraft((prev) => ({ ...prev, quantity: value }));
     const num = parseFloat(value);
     if (!isNaN(num)) {
       debouncedUpdate({ quantity: num });
@@ -68,7 +94,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
   };
 
   const handlePriceChange = (value: string) => {
-    setPrice(value);
+    setDraft((prev) => ({ ...prev, price: value }));
     const num = parseFloat(value);
     if (!isNaN(num)) {
       debouncedUpdate({ price: num });
@@ -76,7 +102,7 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
   };
 
   const handleCommentChange = (value: string) => {
-    setComment(value);
+    setDraft((prev) => ({ ...prev, comment: value }));
     debouncedUpdate({ comment: value });
   };
 
@@ -110,8 +136,10 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
       <div className="w-[80px]">
         <Input
           type="number"
-          value={quantity}
+          value={draft.quantity}
           onChange={(e) => handleQuantityChange(e.target.value)}
+          onFocus={() => (isEditingRef.current = true)}
+          onBlur={() => (isEditingRef.current = false)}
           className="h-8 text-xs"
           placeholder="Qty"
           data-testid="flow-quantity-input"
@@ -134,8 +162,10 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
       <div className="w-[90px]">
         <Input
           type="number"
-          value={price}
+          value={draft.price}
           onChange={(e) => handlePriceChange(e.target.value)}
+          onFocus={() => (isEditingRef.current = true)}
+          onBlur={() => (isEditingRef.current = false)}
           className="h-8 text-xs"
           placeholder="Price"
           step="0.01"
@@ -144,8 +174,10 @@ export function FlowRow({ flow, date, products, units }: FlowRowProps) {
       </div>
       <div className="flex-1">
         <Input
-          value={comment}
+          value={draft.comment}
           onChange={(e) => handleCommentChange(e.target.value)}
+          onFocus={() => (isEditingRef.current = true)}
+          onBlur={() => (isEditingRef.current = false)}
           className="h-8 text-xs"
           placeholder="Comment"
           data-testid="flow-comment-input"

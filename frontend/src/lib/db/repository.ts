@@ -17,6 +17,7 @@ export abstract class Repository<
     version: number;
     created_at: string | null;
     updated_at: string | null;
+    deleted_at: string | null;
   },
 > {
   constructor(
@@ -27,14 +28,17 @@ export abstract class Repository<
 
   /**
    * Create a new entity
-   * Automatically generates: id, version, created_at, updated_at
+   * Automatically generates: id, version, created_at, updated_at, deleted_at
    * Records CREATE operation in outbox
    *
-   * @param data Entity data (without id, version, timestamps)
+   * @param data Entity data (without id, version, timestamps, deleted_at)
    * @returns Created entity with all fields
    */
   async create(
-    data: Omit<T, "id" | "version" | "created_at" | "updated_at">,
+    data: Omit<
+      T,
+      "id" | "version" | "created_at" | "updated_at" | "deleted_at"
+    >,
   ): Promise<T> {
     const now = new Date().toISOString();
     const entity: T = {
@@ -43,6 +47,7 @@ export abstract class Repository<
       version: 1,
       created_at: now,
       updated_at: now,
+      deleted_at: null,
     } as T;
 
     // Insert into table
@@ -100,8 +105,8 @@ export abstract class Repository<
   }
 
   /**
-   * Delete an entity
-   * Records DELETE operation in outbox before removing from table
+   * Soft delete an entity
+   * Sets deleted_at timestamp and records DELETE operation in outbox
    *
    * @param id Entity ID
    * @throws Error if entity not found
@@ -115,11 +120,19 @@ export abstract class Repository<
       throw new Error(`${this.entityType} with id ${id} not found`);
     }
 
-    // Record in outbox BEFORE deleting (need version for conflict resolution)
+    // Record in outbox BEFORE soft deleting (need version for conflict resolution)
     await this.recordOperation(id, "DELETE", { version: current.version });
 
-    // Delete from table
-    await table.delete(id);
+    // Soft delete: set deleted_at timestamp
+    const now = new Date().toISOString();
+    const updated: T = {
+      ...current,
+      deleted_at: now,
+      version: current.version + 1,
+      updated_at: now,
+    };
+
+    await table.put(updated);
   }
 
   /**

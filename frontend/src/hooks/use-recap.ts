@@ -7,10 +7,13 @@ import {
 import type { RecapGroup } from "@/lib/types";
 
 async function getRecapFromLocalDb(date: string): Promise<RecapGroup[]> {
-  const preOrders = await db.pre_orders
+  const allPreOrders = await db.pre_orders
     .where("delivery_date")
     .equals(date)
     .toArray();
+
+  // Filter out soft-deleted pre-orders
+  const preOrders = allPreOrders.filter((po) => po.deleted_at === null);
 
   if (preOrders.length === 0) return [];
 
@@ -32,9 +35,12 @@ async function getRecapFromLocalDb(date: string): Promise<RecapGroup[]> {
     .anyOf(preOrderIds)
     .toArray();
 
+  // Filter out soft-deleted flows
+  const flows = allFlows.filter((f) => f.deleted_at === null);
+
   // Group flows by pre_order_id
-  const flowsByPreOrderId = new Map<string, typeof allFlows>();
-  for (const flow of allFlows) {
+  const flowsByPreOrderId = new Map<string, typeof flows>();
+  for (const flow of flows) {
     const list = flowsByPreOrderId.get(flow.pre_order_id) ?? [];
     list.push(flow);
     flowsByPreOrderId.set(flow.pre_order_id, list);

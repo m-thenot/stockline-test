@@ -20,6 +20,7 @@ export interface PreOrder {
   created_at: string | null;
   updated_at: string | null;
   version: number;
+  deleted_at: string | null;
 }
 
 /**
@@ -37,6 +38,7 @@ export interface PreOrderFlow {
   created_at: string | null;
   updated_at: string | null;
   version: number;
+  deleted_at: string | null;
 }
 
 /**

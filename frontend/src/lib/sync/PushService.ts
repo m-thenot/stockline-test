@@ -286,7 +286,13 @@ export class PushService {
   ): Promise<{ success: boolean; affectedPreOrderId: string | null }> {
     const outboxOp = outboxById.get(opResult.operation_id);
 
-    if (opResult.status === "success" || opResult.status === "conflict") {
+    console.log("opResult", opResult);
+
+    if (
+      opResult.status === "success" ||
+      (opResult.status === "conflict" &&
+        !(outboxOp?.operation_type === "DELETE"))
+    ) {
       // Both success and conflict are considered "handled" by the server
       await this.db.markOperationSynced(opResult.operation_id);
 
@@ -333,6 +339,40 @@ export class PushService {
         affectedPreOrderId: preOrderId,
       };
     } else {
+      // Handle DELETE conflicts - restore entity by setting deleted_at to null
+      if (
+        opResult.status === "conflict" &&
+        outboxOp?.operation_type === "DELETE"
+      ) {
+        // Restore entity by setting deleted_at to null and updating version
+        if (outboxOp.entity_type === "pre_order") {
+          const existing = await this.db.pre_orders.get(outboxOp.entity_id);
+          if (existing) {
+            await this.db.pre_orders.update(outboxOp.entity_id, {
+              deleted_at: null,
+              version: opResult.new_version ?? existing.version,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        } else if (outboxOp.entity_type === "pre_order_flow") {
+          const existing = await this.db.pre_order_flows.get(
+            outboxOp.entity_id,
+          );
+          if (existing) {
+            await this.db.pre_order_flows.update(outboxOp.entity_id, {
+              deleted_at: null,
+              version: opResult.new_version ?? existing.version,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
+
+        logger.warn(
+          `DELETE operation ${opResult.operation_id} rejected - entity restored (deleted_at set to null):`,
+          opResult.message,
+        );
+      }
+
       // Server rejected the operation (permanent error)
       await this.db.markOperationRejected(
         opResult.operation_id,

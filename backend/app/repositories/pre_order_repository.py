@@ -59,14 +59,16 @@ class PreOrderRepository:
         return entity
 
     async def soft_delete(self, entity: PreOrder) -> PreOrder:
-        """Soft-delete the pre_order and hard-delete its associated flows."""
+        """Soft-delete the pre_order and soft-delete its associated flows."""
         now = datetime.now(UTC)
 
         flows_result = await self._session.execute(
             select(PreOrderFlow).where(PreOrderFlow.pre_order_id == entity.id)
         )
         for flow in flows_result.scalars().all():
-            await self._session.delete(flow)
+            flow.deleted_at = now
+            flow.version += 1
+            flow.updated_at = now
 
         entity.deleted_at = now
         entity.version += 1

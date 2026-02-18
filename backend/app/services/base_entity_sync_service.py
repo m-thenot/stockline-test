@@ -143,13 +143,12 @@ class BaseEntitySyncService(Generic[T]):
                 message=f"{self._entity_name} {op.entity_id} not found",
             )
 
-        # Check if entity is already deleted (idempotency)
+        # Check if entity is already deleted
         if hasattr(entity, "deleted_at") and entity.deleted_at is not None:
             return PushOperationResult(
                 operation_id=op.id,
-                status=PushResultStatus.SUCCESS,
-                new_version=entity.version,
-                message=f"{self._entity_name} {op.entity_id} already deleted, no-op",
+                status=PushResultStatus.ERROR,
+                message=f"{self._entity_name} {op.entity_id} already deleted, cannot update",
             )
 
         # Get server-changed fields for conflict detection
