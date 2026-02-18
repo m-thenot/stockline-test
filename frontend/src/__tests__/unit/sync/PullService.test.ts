@@ -354,7 +354,6 @@ describe("PullService", () => {
 
       await pullService.pullIncremental();
 
-      expect(mockDB.pre_orders.delete).toHaveBeenCalledWith("po1");
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining("deleted by server"),
       );
@@ -448,13 +447,32 @@ describe("PullService", () => {
 
       await pullService.pullIncremental();
 
-      // Should apply server update first, then reapply local DELETE
-      expect(mockDB.pre_orders.delete).toHaveBeenCalledWith("po1");
+      // Should apply server update first, then reapply local DELETE (soft delete via update)
+      expect(mockDB.pre_orders.update).toHaveBeenCalledWith(
+        "po1",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          version: 3,
+          updated_at: expect.any(String),
+        }),
+      );
 
-      // Should also delete associated flows
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledTimes(2);
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledWith("flow1");
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledWith("flow2");
+      // Should also soft-delete associated flows
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledTimes(2);
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledWith(
+        "flow1",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledWith(
+        "flow2",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
     });
 
     it("should invalidate cache for affected pre_orders", async () => {
@@ -633,6 +651,7 @@ describe("PullService", () => {
         created_at: null,
         updated_at: null,
         version: 1,
+        deleted_at: null,
       });
     });
 
@@ -671,9 +690,21 @@ describe("PullService", () => {
 
     it("should apply PreOrder DELETE and cascade to flows", async () => {
       const flows = [
-        { id: "flow1", pre_order_id: "po1" },
-        { id: "flow2", pre_order_id: "po1" },
+        { id: "flow1", pre_order_id: "po1", version: 1 },
+        { id: "flow2", pre_order_id: "po1", version: 1 },
       ];
+
+      vi.mocked(mockDB.pre_orders.get).mockResolvedValue({
+        id: "po1",
+        partner_id: "p1",
+        status: 0,
+        order_date: null,
+        delivery_date: "2024-01-15",
+        comment: null,
+        created_at: null,
+        updated_at: null,
+        version: 1,
+      });
 
       const mockWhere = {
         equals: vi.fn(() => ({
@@ -691,9 +722,31 @@ describe("PullService", () => {
 
       await (pullService as any).applyOperation(operation);
 
-      expect(mockDB.pre_orders.delete).toHaveBeenCalledWith("po1");
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledWith("flow1");
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledWith("flow2");
+      // Soft delete: update with deleted_at
+      expect(mockDB.pre_orders.update).toHaveBeenCalledWith(
+        "po1",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          version: 2,
+          updated_at: expect.any(String),
+        }),
+      );
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledWith(
+        "flow1",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          version: 2,
+          updated_at: expect.any(String),
+        }),
+      );
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledWith(
+        "flow2",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          version: 2,
+          updated_at: expect.any(String),
+        }),
+      );
     });
 
     it("should apply PreOrderFlow CREATE operation", async () => {
@@ -725,6 +778,7 @@ describe("PullService", () => {
         created_at: null,
         updated_at: null,
         version: 1,
+        deleted_at: null,
       });
     });
 
@@ -763,6 +817,19 @@ describe("PullService", () => {
     });
 
     it("should apply PreOrderFlow DELETE operation", async () => {
+      vi.mocked(mockDB.pre_order_flows.get).mockResolvedValue({
+        id: "flow1",
+        pre_order_id: "po1",
+        product_id: "prod1",
+        unit_id: "unit1",
+        quantity: 10,
+        price: 100,
+        comment: null,
+        created_at: null,
+        updated_at: null,
+        version: 1,
+      });
+
       const operation = createMockPullOperation({
         entity_type: "pre_order_flow",
         entity_id: "flow1",
@@ -772,7 +839,15 @@ describe("PullService", () => {
 
       await (pullService as any).applyOperation(operation);
 
-      expect(mockDB.pre_order_flows.delete).toHaveBeenCalledWith("flow1");
+      // Soft delete: update with deleted_at
+      expect(mockDB.pre_order_flows.update).toHaveBeenCalledWith(
+        "flow1",
+        expect.objectContaining({
+          deleted_at: expect.any(String),
+          version: 2,
+          updated_at: expect.any(String),
+        }),
+      );
     });
 
     it("should skip UPDATE when entity doesn't exist", async () => {

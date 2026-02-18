@@ -26,31 +26,31 @@ export function PartnerCard({
 
   return (
     <Card
-      className="mb-4"
+      className="overflow-hidden transition-shadow hover:shadow-md"
       data-testid="partner-card"
       data-partner-id={partner.id}
     >
       <CardHeader
-        className="flex flex-row items-center gap-3 cursor-pointer select-none pb-3 pt-4 px-4"
+        className="flex cursor-pointer select-none flex-row items-baseline gap-3 px-6 py-5"
         onClick={() => setExpanded(!expanded)}
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-5 w-5 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
         )}
-        <CardTitle className="text-base">{partner.name}</CardTitle>
+        <CardTitle className="text-lg">{partner.name}</CardTitle>
         {partner.code && (
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs font-normal">
             {partner.code}
           </Badge>
         )}
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="secondary" className="text-xs font-normal">
           {preOrders.length} order{preOrders.length !== 1 ? "s" : ""}
         </Badge>
       </CardHeader>
       {expanded && (
-        <CardContent className="px-4 pb-4 pt-0">
+        <CardContent className="space-y-3 px-6 pb-6 pt-0">
           {preOrders.map((order) => (
             <OrderCard
               key={order.id}

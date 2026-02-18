@@ -22,35 +22,35 @@ export function RecapView() {
   const groups = recap.data || [];
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-7xl flex-col gap-8">
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-2xl font-bold tracking-tight"
+            className="text-3xl font-semibold tracking-tight"
             data-testid="recap-heading"
           >
             Recap
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Daily pre-orders overview
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <DatePicker value={selectedDate} onChange={setSelectedDate} />
           <AddOrderDialog date={selectedDate} />
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-16">
           <p className="text-muted-foreground">Loading...</p>
         </div>
       ) : groups.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-16">
           <p className="text-muted-foreground">No orders for this date</p>
         </div>
       ) : (
-        <div>
+        <div className="flex flex-col gap-6">
           {groups.map((group) => (
             <PartnerCard
               key={group.partner.id}

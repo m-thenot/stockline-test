@@ -151,6 +151,12 @@ export class PullService {
         );
       }
 
+      // Update last sync timestamp
+      await this.db.metadata.put({
+        key: "last_sync_timestamp",
+        value: Date.now(),
+      });
+
       logger.info("Incremental pull completed");
     } catch (error) {
       logger.error("Failed to pull incremental operations:", error);

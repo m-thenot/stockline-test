@@ -33,8 +33,12 @@ export function OrderCard({ order, date, products, units }: OrderCardProps) {
   const orderIdSuffix = order.id.slice(-8);
 
   return (
-    <Card className="mb-3" data-testid="order-card" data-order-id={order.id}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-4 px-4">
+    <Card
+      className="border-muted/50 bg-muted/30"
+      data-testid="order-card"
+      data-order-id={order.id}
+    >
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-5 py-4">
         <div className="flex items-center gap-3">
           <Badge
             className="cursor-pointer select-none"
@@ -60,10 +64,10 @@ export function OrderCard({ order, date, products, units }: OrderCardProps) {
           <Trash2 className="h-4 w-4" />
         </Button>
       </CardHeader>
-      <CardContent className="px-4 pb-4 pt-0">
+      <CardContent className="px-5 pb-5 pt-0">
         {order.flows.length > 0 && (
-          <div className="mb-1">
-            <div className="flex items-center gap-2 pb-1 text-xs font-medium text-muted-foreground">
+          <div className="mb-3">
+            <div className="flex items-center gap-2 pb-2 text-xs font-medium text-muted-foreground">
               <div className="w-[200px]">Product</div>
               <div className="w-[80px]">Qty</div>
               <div className="w-[120px]">Unit</div>

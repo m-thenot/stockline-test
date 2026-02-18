@@ -18,6 +18,7 @@ export interface SyncStatus {
   lastError: Error | null;
   pendingOperations: number;
   pullSyncing: boolean;
+  lastSyncTimestamp: number | null;
 }
 
 export interface PushResult {

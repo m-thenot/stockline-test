@@ -23,6 +23,7 @@ export class SyncManager {
   private lastPushTime: Date | null = null;
   private lastError: Error | null = null;
   private pendingOperations = 0;
+  private lastSyncTimestamp: number | null = null;
 
   private config: SyncConfig = {
     pushIntervalMs: 30000, // 30 seconds
@@ -54,12 +55,13 @@ export class SyncManager {
     lastError: null,
     pendingOperations: 0,
     pullSyncing: false,
+    lastSyncTimestamp: null,
   };
 
   /**
    * Private constructor for singleton pattern
    */
-  private constructor(database: SyncDB) {
+  private constructor(private database: SyncDB) {
     this.pushService = new PushService(database);
     this.pullService = new PullService(database);
     this.sseService = new SSEService((event) => this.handleSSEEvent(event));
@@ -69,6 +71,9 @@ export class SyncManager {
 
     // Setup connection listeners
     this.setupConnectionListeners();
+
+    // Load last sync timestamp from IndexedDB
+    this.loadLastSyncTimestamp();
 
     // Rebuild snapshot after connection detection
     this._snapshot = this.buildSnapshot();
@@ -245,6 +250,7 @@ export class SyncManager {
 
     return this.enqueueSync("pull", async () => {
       await this.pullService.pullIncremental();
+      await this.loadLastSyncTimestamp();
     });
   }
 
@@ -352,6 +358,7 @@ export class SyncManager {
       lastError: this.lastError,
       pendingOperations: this.pendingOperations,
       pullSyncing: pullStatus.syncing,
+      lastSyncTimestamp: this.lastSyncTimestamp,
     };
   }
 
@@ -429,6 +436,17 @@ export class SyncManager {
   private async updatePendingCount(): Promise<void> {
     const operations = await db.getPendingOperations();
     this.pendingOperations = operations.length;
+  }
+
+  /**
+   * Load last sync timestamp from IndexedDB
+   */
+  private async loadLastSyncTimestamp(): Promise<void> {
+    const metadata = await this.database.metadata.get("last_sync_timestamp");
+    if (metadata) {
+      this.lastSyncTimestamp = metadata.value as number;
+      this.notify();
+    }
   }
 
   /**
