@@ -209,31 +209,50 @@ export class PushService {
         }
       }
 
-      if (updates.length > 1) {
-        // Merge all UPDATEs into the first one
-        const firstUpdate = updates[0];
-        let mergedData = { ...(firstUpdate.data as Record<string, unknown>) };
+      // Check if there's a DELETE at the end (after UPDATEs)
+      const endsWithDelete =
+        rest.length > 0 && rest[rest.length - 1].operation_type === "DELETE";
 
-        for (let i = 1; i < updates.length; i++) {
-          const laterData = { ...(updates[i].data as Record<string, unknown>) };
-          // Strip version from later UPDATEs — keep the first UPDATE's expected_version
-          delete laterData.version;
-          mergedData = { ...mergedData, ...laterData };
-          toRemoveIds.push(updates[i].id);
+      if (endsWithDelete) {
+        // UPDATE(s) + ... + DELETE → keep only DELETE, discard all UPDATEs
+        // UPDATEs are redundant since the entity will be deleted
+        for (const update of updates) {
+          toRemoveIds.push(update.id);
+        }
+        // Pass through the DELETE (and any other operations in rest)
+        for (const op of rest) {
+          toSend.push(op);
+        }
+      } else {
+        // Normal UPDATE merging logic (no DELETE at the end)
+        if (updates.length > 1) {
+          // Merge all UPDATEs into the first one
+          const firstUpdate = updates[0];
+          let mergedData = { ...(firstUpdate.data as Record<string, unknown>) };
+
+          for (let i = 1; i < updates.length; i++) {
+            const laterData = {
+              ...(updates[i].data as Record<string, unknown>),
+            };
+            // Strip version from later UPDATEs — keep the first UPDATE's expected_version
+            delete laterData.version;
+            mergedData = { ...mergedData, ...laterData };
+            toRemoveIds.push(updates[i].id);
+          }
+
+          toSend.push({
+            ...firstUpdate,
+            data: mergedData,
+            timestamp: updates[updates.length - 1].timestamp,
+          });
+        } else if (updates.length === 1) {
+          toSend.push(updates[0]);
         }
 
-        toSend.push({
-          ...firstUpdate,
-          data: mergedData,
-          timestamp: updates[updates.length - 1].timestamp,
-        });
-      } else if (updates.length === 1) {
-        toSend.push(updates[0]);
-      }
-
-      // Pass through any trailing non-UPDATE operations (e.g. a final DELETE)
-      for (const op of rest) {
-        toSend.push(op);
+        // Pass through any trailing non-UPDATE operations
+        for (const op of rest) {
+          toSend.push(op);
+        }
       }
     }
 

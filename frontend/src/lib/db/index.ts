@@ -137,7 +137,6 @@ export class SyncDB extends Dexie {
     let next_retry_at: number | null = null;
 
     if (newRetryCount <= MAX_RETRIES) {
-      // Calculate exponential backoff: BASE_DELAY * (2 ^ retry_count)
       const delayMs = Math.min(
         BASE_DELAY_MS * Math.pow(2, newRetryCount - 1),
         MAX_DELAY_MS,
