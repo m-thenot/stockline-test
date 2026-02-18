@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import AsyncSessionLocal, get_db
+from ..di import DependencyContainer
 from ..models import OperationLog, Partner, PreOrder, PreOrderFlow, Product, Unit
 from ..schemas import (
     FlowSnapshotResponse,
@@ -22,7 +23,6 @@ from ..schemas import (
     UnitResponse,
 )
 from ..services.event_broadcaster import broadcaster
-from ..services.sync_push_service import SyncPushService
 
 router = APIRouter(prefix="/sync")
 
@@ -65,8 +65,11 @@ async def push_operations(body: PushRequest, db: AsyncSession = Depends(get_db))
     Receive a batch of operations from the client and apply them.
     Each operation is processed in its own savepoint so that individual
     failures do not roll back the entire batch.
+
+    Uses dependency injection container to wire all services.
     """
-    service = SyncPushService(db)
+    container = DependencyContainer(db)
+    service = container.get_sync_push_service()
     return await service.process_operations(body.operations)
 
 

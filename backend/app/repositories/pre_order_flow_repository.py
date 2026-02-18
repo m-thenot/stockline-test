@@ -18,11 +18,12 @@ class PreOrderFlowRepository:
         entity_id: uuid.UUID,
         pre_order_id: uuid.UUID,
         product_id: uuid.UUID,
+        unit_id: uuid.UUID,
         quantity: float,
         price: float,
-        unit_id: uuid.UUID,
         comment: str | None = None,
     ) -> PreOrderFlow:
+        """Create a new PreOrderFlow entity"""
         now = datetime.now(UTC)
         flow = PreOrderFlow(
             id=entity_id,
@@ -42,7 +43,7 @@ class PreOrderFlowRepository:
 
     async def apply_update(
         self,
-        flow: PreOrderFlow,
+        entity: PreOrderFlow,
         data: dict,
     ) -> PreOrderFlow:
         """Apply partial field updates, bump version and updated_at."""
@@ -51,35 +52,19 @@ class PreOrderFlowRepository:
             if field in updatable_fields:
                 if field in ("product_id", "unit_id"):
                     value = uuid.UUID(value)
-                setattr(flow, field, value)
+                setattr(entity, field, value)
 
-        flow.version += 1
-        flow.updated_at = datetime.now(UTC)
+        entity.version += 1
+        entity.updated_at = datetime.now(UTC)
         await self._session.flush()
-        return flow
+        return entity
 
-    async def soft_delete(self, flow: PreOrderFlow) -> PreOrderFlow:
+    async def soft_delete(self, entity: PreOrderFlow) -> PreOrderFlow:
         """Soft-delete the flow."""
         now = datetime.now(UTC)
 
-        flow.deleted_at = now
-        flow.version += 1
-        flow.updated_at = now
+        entity.deleted_at = now
+        entity.version += 1
+        entity.updated_at = now
         await self._session.flush()
-        return flow
-
-    @staticmethod
-    def snapshot(flow: PreOrderFlow) -> dict:
-        """Build a JSON-serialisable snapshot for the operation_log data column."""
-        return {
-            "id": str(flow.id),
-            "pre_order_id": str(flow.pre_order_id),
-            "product_id": str(flow.product_id),
-            "quantity": flow.quantity,
-            "price": flow.price,
-            "unit_id": str(flow.unit_id),
-            "comment": flow.comment,
-            "created_at": flow.created_at.isoformat() if flow.created_at else None,
-            "updated_at": flow.updated_at.isoformat() if flow.updated_at else None,
-            "version": flow.version,
-        }
+        return entity

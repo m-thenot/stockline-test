@@ -23,6 +23,7 @@ class PreOrderRepository:
         order_date: str | None = None,
         comment: str | None = None,
     ) -> PreOrder:
+        """Create a new PreOrder entity"""
         now = datetime.now(UTC)
         pre_order = PreOrder(
             id=entity_id,
@@ -41,7 +42,7 @@ class PreOrderRepository:
 
     async def apply_update(
         self,
-        pre_order: PreOrder,
+        entity: PreOrder,
         data: dict,
     ) -> PreOrder:
         """Apply partial field updates, bump version and updated_at."""
@@ -50,40 +51,25 @@ class PreOrderRepository:
             if field in updatable_fields:
                 if field == "partner_id":
                     value = uuid.UUID(value)
-                setattr(pre_order, field, value)
+                setattr(entity, field, value)
 
-        pre_order.version += 1
-        pre_order.updated_at = datetime.now(UTC)
+        entity.version += 1
+        entity.updated_at = datetime.now(UTC)
         await self._session.flush()
-        return pre_order
+        return entity
 
-    async def soft_delete(self, pre_order: PreOrder) -> PreOrder:
+    async def soft_delete(self, entity: PreOrder) -> PreOrder:
         """Soft-delete the pre_order and hard-delete its associated flows."""
         now = datetime.now(UTC)
 
         flows_result = await self._session.execute(
-            select(PreOrderFlow).where(PreOrderFlow.pre_order_id == pre_order.id)
+            select(PreOrderFlow).where(PreOrderFlow.pre_order_id == entity.id)
         )
         for flow in flows_result.scalars().all():
             await self._session.delete(flow)
 
-        pre_order.deleted_at = now
-        pre_order.version += 1
-        pre_order.updated_at = now
+        entity.deleted_at = now
+        entity.version += 1
+        entity.updated_at = now
         await self._session.flush()
-        return pre_order
-
-    @staticmethod
-    def snapshot(po: PreOrder) -> dict:
-        """Build a JSON-serialisable snapshot for the operation_log data column."""
-        return {
-            "id": str(po.id),
-            "partner_id": str(po.partner_id),
-            "status": po.status,
-            "order_date": po.order_date,
-            "delivery_date": po.delivery_date,
-            "comment": po.comment,
-            "created_at": po.created_at.isoformat() if po.created_at else None,
-            "updated_at": po.updated_at.isoformat() if po.updated_at else None,
-            "version": po.version,
-        }
+        return entity
